@@ -33,6 +33,7 @@ def main() -> int:
     p_img.add_argument("--no-avatar-lock", action="store_true")
     p_img.add_argument("--allow-2d", action="store_true")
     p_img.add_argument("--emit-media", action="store_true")
+    p_img.add_argument("--keep-existing", action="store_true")
 
     p_bridge = sub.add_parser("bridge")
     p_bridge.add_argument("prompt")
@@ -79,6 +80,8 @@ def main() -> int:
             args += ["--allow-2d"]
         if a.emit_media:
             args += ["--emit-media"]
+        if a.keep_existing:
+            args += ["--keep-existing"]
         return _run("gemini_image.py", *args)
 
     if a.cmd == "bridge":

@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.error
 import urllib.request
@@ -158,6 +159,23 @@ def _validate_out_dir_path(out_dir: str) -> Path:
     except ValueError:
         return p
 
+
+def _purge_media_image_dir_if_needed(out_dir: Path, keep_existing: bool) -> None:
+    if keep_existing:
+        return
+    if out_dir != SAFE_DEFAULT_OUTPUT_DIR:
+        return
+    if not out_dir.exists():
+        return
+    for child in out_dir.iterdir():
+        try:
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+        except Exception:
+            continue
+
 def call_generate(
     api_key: str,
     model: str,
@@ -239,6 +257,7 @@ def main() -> int:
     ap.add_argument("--no-avatar-lock", action="store_true", help="Disable strict same-identity prompt lock when --ref-image is used")
     ap.add_argument("--allow-2d", action="store_true", help="Allow non-photorealistic 2D/cartoon style (auto-uses taeyul2D ref when default ref is used)")
     ap.add_argument("--emit-media", action="store_true", help="Print MEDIA:relative_path for direct chat attachment")
+    ap.add_argument("--keep-existing", action="store_true", help="Keep existing files in output directory (default: purge ~/.openclaw/media/image before save)")
     args = ap.parse_args()
 
     api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
@@ -271,6 +290,7 @@ def main() -> int:
         return 1
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    _purge_media_image_dir_if_needed(out_dir, args.keep_existing)
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     ext = ext_from_mime(mime)
