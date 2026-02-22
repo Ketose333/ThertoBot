@@ -13,8 +13,6 @@
   - 가이드: [`utility/rp/README.md`](./rp/README.md), [`utility/rp/rp_guide.md`](./rp/rp_guide.md)
 - `youtube_watch/` : 유튜브 워처 등록/점검
   - 가이드: [`utility/youtube_watch/README.md`](./youtube_watch/README.md)
-- `logs/` : 유틸 실행 로그/중간 로그 파일 자리
-  - 가이드: [`utility/logs/README.md`](./logs/README.md)
 
 구조 의도:
 - 실행 정책은 policy 문서를 기준으로 유지하고,
