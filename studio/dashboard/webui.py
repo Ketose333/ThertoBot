@@ -8,9 +8,12 @@ import os
 import subprocess
 import time
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs
+
+from http_handler import create_handler
+from post_actions import handle_post
+from view_context import build_dashboard_context
 
 
 def _val(form: dict[str, list[str]], key: str, default: str = "") -> str:
@@ -396,8 +399,11 @@ def _run_portproxy_update() -> tuple[bool, str]:
             last = out[-260:]
         except Exception as e:
             last = str(e)
-    manual = f"관리자 PowerShell에서 실행: powershell -ExecutionPolicy Bypass -File '{script}' -Ports {ports_arg}"
-    return False, f'자동 실행 실패. {manual}'
+    manual = (
+        "자동 실행 실패. 아래 관리자 PowerShell 한 줄을 그대로 실행해줘:\n"
+        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"$src=''\\\\wsl.localhost\\Ubuntu\\home\\user\\.openclaw\\workspace\\utility\\common\\windows_wsl_portproxy_autoupdate.ps1''; $dst=Join-Path $env:TEMP ''windows_wsl_portproxy_autoupdate.ps1''; if(!(Test-Path $src)){throw ''스크립트 없음''}; Copy-Item $src $dst -Force; Unblock-File $dst; Set-ExecutionPolicy -Scope Process Bypass -Force; & $dst -Ports ''8767,8787,8791''\"'"
+    )
+    return False, manual
 
 
 def _dm_bulk_runtime_status() -> tuple[str, str, str]:
@@ -439,194 +445,66 @@ def _dm_bulk_runtime_status() -> tuple[str, str, str]:
 
 
 def render_page(alert: str = "") -> bytes:
-    ok, data, raw = gateway_call("cron.list", {"includeDisabled": True})
-    jobs = data.get("jobs", []) if ok else []
+    ctx = build_dashboard_context(alert, {
+        "gateway_call": gateway_call,
+        "load_ui_texts": _load_ui_texts,
+        "load_sources_cfg": _load_sources_cfg,
+        "dm_bulk_runtime_status": _dm_bulk_runtime_status,
+        "rp_status": _rp_status,
+        "studio_ui_status": studio_ui_status,
+        "aiven_mysql_status": _aiven_mysql_status,
+        "load_network_cfg": _load_network_cfg,
+        "load_dashboard_checks": _load_dashboard_checks,
+        "run_script_check": _run_script_check,
+        "system_dup_signal": _system_dup_signal,
+        "load_cron_columns": _load_cron_columns,
+        "fmt_kst": _fmt_kst,
+        "due_label": _due_label,
+    })
 
-    now_ms = int(time.time() * 1000)
-    ui_txt = _load_ui_texts()
-    sec = ui_txt.get('sections', {})
-    btn = ui_txt.get('buttons', {})
-    sources_cfg = _load_sources_cfg()
-    dm_channel_id = str(sources_cfg.get('discordDmChannelId', ''))
-    dm_rt_label, dm_rt_color, dm_rt_detail = _dm_bulk_runtime_status()
-    rp_on, rp_state_text = _rp_status()
-    remote_urls = _remote_urls()
-    remote_urls_html = ''.join([f"<div><a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a></div>" for u in remote_urls]) or "<div class='muted'>network.json의 lanHostIp를 채우면 바로 링크가 보여.</div>"
-    rows = []
-    enabled_count = 0
-    disabled_count = 0
-    problem_count = 0
-    cron_count = 0
-    every_count = 0
-    at_count = 0
-    issue_rows = []
-    cards = []
-    for j in jobs:
-        jid_raw = str(j.get("id", ""))
-        jid = html.escape(jid_raw)
-        name = html.escape(str(j.get("name", "(no name)")))
-        enabled = bool(j.get("enabled", True))
-        schedule_obj = j.get("schedule", {})
-        sk = str(schedule_obj.get("kind", ""))
-        if sk == "cron":
-            cron_count += 1
-        elif sk == "every":
-            every_count += 1
-        elif sk == "at":
-            at_count += 1
-        schedule = html.escape(json.dumps(schedule_obj, ensure_ascii=False))
-        state = j.get("state", {}) or {}
-        last_status_raw = str(state.get("lastStatus", "-"))
-        last_status = html.escape(last_status_raw)
-        next_run_ms = state.get("nextRunAtMs")
-        if enabled:
-            enabled_count += 1
-        else:
-            disabled_count += 1
-        next_run = html.escape(f"{_fmt_kst(next_run_ms)} ({_due_label(next_run_ms, now_ms)})")
-        delivery = j.get("delivery", {}) or {}
-        payload = j.get("payload", {}) or {}
-        session_target = str(j.get("sessionTarget", ""))
-        btn_toggle = btn.get('toggleOff','비활성화') if enabled else btn.get('toggleOn','활성화')
-
-        delivery_mode = str(delivery.get("mode", "-"))
-        delivery_channel = str(delivery.get("channel", ""))
-        delivery_to = str(delivery.get("to", ""))
-        delivery_view = html.escape(f"{delivery_mode} | {delivery_channel or '-'} | {delivery_to or '-'}")
-
-        issues: list[str] = []
-        if enabled and last_status_raw.lower() not in {"ok", "-"}:
-            issues.append(f"lastStatus={last_status_raw}")
-        if enabled and next_run_ms is None:
-            issues.append("nextRunAtMs 없음")
-        if enabled and isinstance(next_run_ms, (int, float)) and next_run_ms < (now_ms - 5 * 60 * 1000):
-            issues.append("nextRun 지연(과거 시각)")
-        if enabled and delivery.get("mode") == "announce" and not delivery.get("to"):
-            issues.append("announce인데 delivery.to 없음")
-        if enabled and delivery.get("mode") == "announce" and delivery_channel == "discord" and delivery_to and not delivery_to.startswith("user:") and not delivery_to.startswith("channel:"):
-            issues.append("discord target 형식 불명확(to 권장: user:ID)")
-        if enabled and payload.get("kind") == "agentTurn" and delivery.get("mode") == "none":
-            issues.append("알림 미전송 모드(mode=none)")
-        if enabled and session_target == "main" and payload.get("kind") == "systemEvent":
-            issues.append("main systemEvent(별도 알림 아님)")
-
-        if issues:
-            problem_count += 1
-        issue_badges = " ".join([f"<span class='badge'>{html.escape(x)}</span>" for x in issues]) if issues else "-"
-
-        rows.append(
-            f"<tr class='job-row' data-name='{name.lower()}' data-enabled={'on' if enabled else 'off'} data-last='{last_status.lower()}'>"
-            f"<td>{name}</td>"
-            f"<td>{'on' if enabled else 'off'}</td>"
-            f"<td><code>{schedule}</code></td>"
-            f"<td>{next_run}</td>"
-            f"<td>"
-            f"<form method='post' action='/run' style='display:inline'><input type='hidden' name='id' value='{jid}'><button>{html.escape(btn.get('run','즉시 실행'))}</button></form> "
-            f"<form method='post' action='/toggle' style='display:inline'><input type='hidden' name='id' value='{jid}'><input type='hidden' name='enabled' value={'0' if enabled else '1'}><button>{btn_toggle}</button></form> "
-            f"<form method='post' action='/remove' style='display:inline' onsubmit=\"return confirm('정말 삭제할까?')\"><input type='hidden' name='id' value='{jid}'><button style='background:#4a1d1d'>{html.escape(btn.get('delete','삭제'))}</button></form>"
-            f"</td>"
-            f"</tr>"
-        )
-
-        if issues:
-            issue_rows.append(
-                f"<tr><td>{name}</td><td>{' / '.join(html.escape(x) for x in issues)}</td></tr>"
-            )
-
-    if not rows:
-        rows.append("<tr><td colspan='7'>작업 없음</td></tr>")
-
-    if not issue_rows:
-        issue_rows.append("<tr><td colspan='2'>문제 의심 항목 없음</td></tr>")
-
-    ui_ok, ui_rows, ui_raw = studio_ui_status()
-    ui_running = sum(1 for r in ui_rows if bool(r.get('pidAlive')) and bool(r.get('portOpen')))
-    ui_cards_list = []
-    app_cards_list = []
-    for r in ui_rows:
-        nm = str(r.get('name',''))
-        if nm == 'cron':
-            continue
-        r_ok = bool(r.get('pidAlive')) and bool(r.get('portOpen'))
-        r_color = '#22c55e' if r_ok else '#ef4444'
-        r_text = 'RUN' if r_ok else 'DOWN'
-        r_name = html.escape(str(r.get('name', '-')))
-        if nm in {'shorts', 'image'}:
-            app_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
-            continue
-        ui_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
-    aiven_label, aiven_color, aiven_detail = _aiven_mysql_status()
-    ui_cards_list.append(f"<div class='stat'><div class='v' style='color:{aiven_color}'>{aiven_label}</div><div class='muted'>{html.escape(aiven_detail)}</div></div>")
-    ui_cards = ''.join(ui_cards_list) or "<div class='muted'>UI 상태 데이터 없음</div>"
-
-    ncfg = _load_network_cfg()
-    nip = str(ncfg.get('lanHostIp','') or '').strip()
-    nhost = str(ncfg.get('hostName','') or '').strip()
-    link_lines = []
-    for label, port in [('dashboard',8767), ('shorts',8787), ('image',8791)]:
-        links = []
-        if nip:
-            u = f"http://{nip}:{port}"
-            links.append(f"<a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a>")
-        if nhost:
-            u = f"http://{nhost}:{port}"
-            links.append(f"<a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a>")
-        if links:
-            link_lines.append(f"<div><b>{label}</b> · " + " / ".join(links) + "</div>")
-    remote_urls_html = ''.join(link_lines) or "<div class='muted'>network.json의 lanHostIp를 채우면 바로 링크가 보여.</div>"
-    app_cards_html = ''.join(app_cards_list) or "<div class='muted'>shorts/image 상태 데이터 없음</div>"
-
-    def _lv_color(lv: str) -> str:
-        return {'OK': '#22c55e', 'WARN': '#f59e0b', 'ERROR': '#ef4444'}.get(lv, '#94a3b8')
-
-    dashboard_rows = []
-    for chk in _load_dashboard_checks():
-        if not bool(chk.get('enabled', True)):
-            continue
-        label = str(chk.get('label', chk.get('id', 'check')))
-        ctype = str(chk.get('type', 'script'))
-        lv, msg = 'UNKNOWN', '체크 미구성'
-
-        if ctype == 'script':
-            script = str(chk.get('script', ''))
-            lv, msg = _run_script_check(script)
-        elif ctype == 'builtin' and str(chk.get('builtin', '')) == 'system_dup':
-            lv, msg = _system_dup_signal(jobs)
-
-        if bool(chk.get('hideIfUnknown', False)) and lv == 'UNKNOWN':
-            continue
-
-        dashboard_rows.append(
-            f"<tr><td>{html.escape(label)}</td><td style='color:{_lv_color(lv)}'>{html.escape(lv)}</td><td>{html.escape(msg)}</td></tr>"
-        )
-
-    if not dashboard_rows:
-        dashboard_rows.append("<tr><td colspan='3'>표시할 점검 항목이 없어.</td></tr>")
-
-    dashboard_check_rows = ''.join(dashboard_rows)
-
-    cols = _load_cron_columns()
-    cron_head_html = ''.join([f"<th>{html.escape(str(c.get('label','')))}</th>" for c in cols])
-    alert_html = f"<div class='alert'>{html.escape(alert)}</div>" if alert else ""
-    err_html = ""
-    if not ok:
-        err_html = f"<pre class='err'>{html.escape(raw)}</pre>"
-    ui_err_html = "" if ui_ok else f"<pre class='err'>{html.escape(ui_raw)}</pre>"
+    jobs = ctx["jobs"]
+    ui_txt = ctx["ui_txt"]
+    sec = ctx["sec"]
+    dm_channel_id = ctx["dm_channel_id"]
+    dm_rt_label = ctx["dm_rt_label"]
+    dm_rt_color = ctx["dm_rt_color"]
+    dm_rt_detail = ctx["dm_rt_detail"]
+    rp_on = ctx["rp_on"]
+    rp_state_text = ctx["rp_state_text"]
+    rows = ctx["rows"]
+    enabled_count = ctx["enabled_count"]
+    disabled_count = ctx["disabled_count"]
+    problem_count = ctx["problem_count"]
+    issue_rows = ctx["issue_rows"]
+    ui_running = ctx["ui_running"]
+    ui_rows = ctx["ui_rows"]
+    ui_cards = ctx["ui_cards"]
+    ui_err_html = ctx["ui_err_html"]
+    app_cards_html = ctx["app_cards_html"]
+    remote_urls_html = ctx["remote_urls_html"]
+    dashboard_check_rows = ctx["dashboard_check_rows"]
+    cron_head_html = ctx["cron_head_html"]
+    alert_html = ctx["alert_html"]
+    err_html = ctx["err_html"]
 
     body = f"""
 <!doctype html>
 <html lang='ko'>
 <head>
 <meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
 <title>{html.escape(ui_txt.get('appTitle','Studio Dashboard'))}</title>
 <style>
+html,body{{max-width:100%;overflow-x:hidden}}
 body{{font-family:system-ui,sans-serif;background:#0f1520;color:#e9eef5;margin:0;padding:16px}}
-.wrap{{max-width:1280px;margin:0 auto}}
-.panel{{background:#182131;border:1px solid #2b3a52;border-radius:12px;padding:14px;margin-bottom:12px}}
+.wrap{{max-width:1280px;margin:0 auto;min-width:0}}
+.panel{{background:#182131;border:1px solid #2b3a52;border-radius:12px;padding:14px;margin-bottom:12px;min-width:0}}
 h1,h2{{margin:0 0 10px}}
-.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}}
 .full{{grid-column:1/-1}}
 input,select,textarea,button{{width:100%;box-sizing:border-box;background:#0f1725;color:#e9eef5;border:1px solid #344862;border-radius:8px;padding:8px}}
+input::placeholder,textarea::placeholder{{color:#9fb0cb}}
+.muted,.op-desc,.op-title,.tl-name,a,th,td{{overflow-wrap:anywhere;word-break:break-word}}
 button{{cursor:pointer}}
 table{{width:100%;border-collapse:collapse;font-size:12px}}
 th,td{{border:1px solid #30435f;padding:7px;vertical-align:top}}
@@ -659,12 +537,12 @@ details.fold > summary::-webkit-details-marker{{display:none}}
 .op-desc{{font-size:12px;color:#a9b7cf}}
 .op-label{{font-size:12px;color:#9fb0cb}}
 .op-check{{font-size:12px;color:#d7e2f2;display:flex;gap:8px;align-items:center}}
-.btn{{width:100%;padding:10px;border-radius:10px;font-weight:700}}
+.btn{{width:100%;min-height:44px;padding:10px;border-radius:10px;font-weight:700}}
 .btn-green{{background:#173b2a;border:1px solid #2aa748;color:#e9eef5}}
 .btn-lime{{background:#2f3f17;border:1px solid #9acb47;color:#e9eef5}}
 .btn-blue{{background:#17324a;border:1px solid #4b83c0;color:#e9eef5}}
 .btn-red{{background:#4a1d1d;border:1px solid #8e3b3b;color:#ffe4e4}}
-@media (max-width:900px){{.dash-grid{{grid-template-columns:1fr}}.col-span-2{{grid-column:auto}}.op-grid{{grid-template-columns:1fr}}}}
+@media (max-width:900px){{.dash-grid{{grid-template-columns:1fr}}.col-span-2{{grid-column:auto}}.op-grid{{grid-template-columns:1fr}}.grid{{grid-template-columns:1fr}}.tabs{{position:static;flex-wrap:wrap;padding:0;background:transparent;backdrop-filter:none}}table{{display:block;overflow:auto;-webkit-overflow-scrolling:touch}}.tl-row{{grid-template-columns:1fr;gap:4px}}}}
 </style>
 </head>
 <body>
@@ -846,87 +724,23 @@ details.fold > summary::-webkit-details-marker{{display:none}}
     return body.encode("utf-8")
 
 
-class Handler(BaseHTTPRequestHandler):
-    def _read_form(self) -> dict[str, list[str]]:
-        ln = int(self.headers.get("Content-Length", "0") or "0")
-        raw = self.rfile.read(ln).decode("utf-8", errors="replace")
-        return parse_qs(raw, keep_blank_values=True)
+def _post_api() -> dict:
+    return {
+        "val": _val,
+        "gateway_call": gateway_call,
+        "rp_turn_on": _rp_turn_on,
+        "rp_turn_off": _rp_turn_off,
+        "load_sources_cfg": _load_sources_cfg,
+        "ensure_dm_bulk_runtime": _ensure_dm_bulk_runtime,
+        "dm_bulk_delete_enqueue": _dm_bulk_delete_enqueue,
+        "commit_push": _commit_push,
+        "initial_reset_run": _initial_reset_run,
+        "create_and_pin_message": _create_and_pin_message,
+        "run_portproxy_update": _run_portproxy_update,
+    }
 
-    def _respond_html(self, body: bytes, status: int = 200):
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
-        self.send_header("Expires", "0")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
-    def do_GET(self):
-        self._respond_html(render_page())
-
-    def do_POST(self):
-        form = self._read_form()
-        path = self.path
-        alert = ""
-
-        try:
-            if path == "/remove":
-                jid = _val(form, "id")
-                ok, _, raw = gateway_call("cron.remove", {"jobId": jid})
-                alert = f"삭제 완료: {jid}" if ok else f"삭제 실패: {raw[-300:]}"
-            elif path == "/run":
-                jid = _val(form, "id")
-                ok, _, raw = gateway_call("cron.run", {"jobId": jid})
-                alert = f"즉시 실행 요청 완료: {jid}" if ok else f"실행 실패: {raw[-300:]}"
-            elif path == "/toggle":
-                jid = _val(form, "id")
-                enabled = _val(form, "enabled") == "1"
-                ok, _, raw = gateway_call("cron.update", {"jobId": jid, "patch": {"enabled": enabled}})
-                alert = f"상태 변경 완료: {jid} -> {'on' if enabled else 'off'}" if ok else f"상태 변경 실패: {raw[-300:]}"
-            elif path == "/rp-on":
-                ok, msg = _rp_turn_on()
-                alert = msg
-            elif path == "/rp-off":
-                ok, msg = _rp_turn_off()
-                alert = msg
-            elif path == "/dm-bulk-delete":
-                sources_cfg = _load_sources_cfg()
-                channel_id = str(sources_cfg.get('discordDmChannelId', '')).strip()
-                limit = int(_val(form, "limit", "300") or "300")
-                delete_pinned = _val(form, "deletePinned") == "1"
-                if not channel_id:
-                    ok, msg = False, 'sources.json에 discordDmChannelId가 없어.'
-                else:
-                    _ensure_dm_bulk_runtime()
-                    ok, msg = _dm_bulk_delete_enqueue(channel_id, limit, delete_pinned=delete_pinned)
-                alert = msg
-            elif path == "/commit-push":
-                message = _val(form, "message")
-                ok, msg = _commit_push(message)
-                alert = msg
-            elif path == "/initial-reset":
-                reason = _val(form, "reason", "dashboard requested initial reset")
-                no_latest = _val(form, "noLatest") == "1"
-                ok, msg = _initial_reset_run(reason, no_latest)
-                alert = msg
-            elif path == "/pin-message":
-                sources_cfg = _load_sources_cfg()
-                channel_id = str(sources_cfg.get('discordDmChannelId', '')).strip()
-                if not channel_id:
-                    ok, msg = False, 'sources.json에 discordDmChannelId가 없어.'
-                else:
-                    ok, msg = _create_and_pin_message(channel_id)
-                alert = msg
-            elif path == "/portproxy-refresh":
-                ok, msg = _run_portproxy_update()
-                alert = msg
-            else:
-                alert = "지원하지 않는 액션"
-        except Exception as e:
-            alert = f"실패: {e}"
-
-        self._respond_html(render_page(alert=alert))
+Handler = create_handler(render_page, handle_post, _post_api)
 
 
 def main() -> int:

@@ -33,6 +33,8 @@ Thumbs.db
 memory/runtime/*.jsonl
 memory/runtime/*.lock
 memory/runtime/studio_ui_runtime.json
+studio/dashboard/runtime/*.jsonl
+studio/dashboard/runtime/*.lock
 
 # Sensitive local memory/profile (keep local only)
 !memory/channels/README.md

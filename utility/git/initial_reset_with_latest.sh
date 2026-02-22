@@ -30,7 +30,7 @@ cat > memory/git-history-archive.md <<EOF
 
 - reset 시점: ${NOW_KST}
 - reset 직전 HEAD: ${OLD_HEAD}
-- 목적: 이니셜커밋으로 히스토리 정리 후, 최신 변경사항은 후속 커밋으로 누적
+- 목적: 이니셜 커밋으로 히스토리 정리 후, 최신 변경사항은 후속 커밋으로 누적
 
 ## 기억 포인트(최근 주요 변경 20개)
 EOF

@@ -2,10 +2,10 @@
 
 운영 기준: [`AGENTS.md`](../../AGENTS.md)
 
-이니셜커밋 강제정리 표준 절차:
+이니셜 커밋 강제 정리 표준 절차:
 1) 현재 변경사항을 패치로 임시 보관
 2) [`memory/git-history-archive.md`](../../memory/git-history-archive.md) 갱신
-3) orphan 이니셜커밋 생성 + 원격 force push
+3) orphan 이니셜 커밋 생성 + 원격 강제 푸시
 4) 보관한 최신 변경사항을 후속 커밋으로 push
 
 ## 실행

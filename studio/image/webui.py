@@ -310,33 +310,35 @@ def _form(selected: str, data: dict, alert: str = '') -> bytes:
 
     body = f"""
 <!doctype html>
-<html><head><meta charset='utf-8'><title>Image Preset UI</title>
+<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Image Preset UI</title>
 <style>
 :root{{--bg:#0b1020;--card:#131a2d;--line:#2a3658;--text:#e8ecff;--muted:#9fafd9;--accent:#2aa748;--accent2:#4f8cff}}
 *{{box-sizing:border-box}}
+html,body{{max-width:100%;overflow-x:hidden}}
 body{{font-family:Inter,Segoe UI,Arial,sans-serif;max-width:980px;margin:20px auto;padding:0 16px;background:radial-gradient(1200px 500px at 10% -20%,#1c2a52 0%,var(--bg) 55%);color:var(--text)}}
-h2{{margin:0 0 6px 0;font-size:26px}}
+h2{{margin:0 0 6px 0;font-size:26px;overflow-wrap:anywhere;word-break:break-word}}
 .desc{{color:var(--muted);margin:0 0 16px 0;font-size:14px}}
-.section{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;margin:12px 0}}
-.section h3{{margin:0 0 8px 0;font-size:15px;color:#d8e2ff}}
+.section{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;margin:12px 0;min-width:0}}
+.section h3{{margin:0 0 8px 0;font-size:15px;color:#d8e2ff;overflow-wrap:anywhere;word-break:break-word}}
 label{{display:block;margin-top:10px;font-weight:600;color:#d7e0ff;font-size:13px}}
 input,textarea,select{{width:100%;padding:9px 10px;border-radius:10px;border:1px solid #3a4a79;background:#0f1527;color:var(--text)}}
+input::placeholder,textarea::placeholder{{color:#9fafd9}}
 input:focus,textarea:focus,select:focus{{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(79,140,255,.2)}}
 textarea{{min-height:120px;resize:vertical}}
 .row{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
 .action-row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}}
-button{{padding:11px 16px;border:0;border-radius:11px;background:linear-gradient(90deg,var(--accent),#2fd37c);color:#fff;font-weight:800;cursor:pointer}}
+button{{min-height:44px;padding:11px 16px;border:0;border-radius:11px;background:linear-gradient(90deg,var(--accent),#2fd37c);color:#fff;font-weight:800;cursor:pointer}}
 button.secondary{{background:#1f2b47;border:1px solid #3a4a79}}
-.alert{{background:#133222;border:1px solid #2aa748;padding:10px;border-radius:10px;white-space:pre-wrap}}
+.alert{{background:#133222;border:1px solid #2aa748;padding:10px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}}
 .checkline{{display:flex;align-items:center;gap:8px;font-weight:500;color:#d7e0ff;margin-top:12px}}
 .checkline input{{width:auto;margin:0}}
 .badges{{margin-bottom:10px}}
 .badge{{display:inline-block;padding:4px 8px;border-radius:999px;background:#152344;border:1px solid #304777;color:#b4c7ff;font-size:12px;margin-right:6px}}
-@media (max-width:780px){{.row{{grid-template-columns:1fr}}}}
+@media (max-width:780px){{body{{padding:0 12px}}.row{{grid-template-columns:1fr}}input,textarea,select,button{{font-size:16px}}}}
 </style></head><body>
 <h2>이미지 생성 UI</h2>
 <p class='desc'>쇼츠 UI와 같은 리듬으로 정리한 이미지 생성 화면이야. 프리셋 저장/실행과 즉시 실행을 한 화면에서 처리해.</p>
-<div class='badges'><span class='badge'>Preset</span><span class='badge'>Direct Run</span><span class='badge'>Upload</span></div>
+<div class='badges'><span class='badge'>프리셋</span><span class='badge'>즉시 실행</span><span class='badge'>업로드</span></div>
 {alert_html}
 <form method='post'>
   <div class='section'>

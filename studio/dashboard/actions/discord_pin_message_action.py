@@ -16,7 +16,7 @@ async def run(channel_id: int, text_path: str) -> tuple[int, str]:
 
     content = Path(text_path).read_text(encoding='utf-8').strip()
     if not content:
-        return 2, '고정메시지 내용 파일이 비어있어.'
+        return 2, '고정 메시지 내용 파일이 비어있어.'
 
     intents = discord.Intents.default()
     intents.guilds = True

@@ -33,25 +33,23 @@ def _active_count() -> int:
 
 def main() -> int:
     active_cnt = _active_count()
+
+    # OFF 상태는 경고가 아니라 정상으로 본다.
     if not LOCK.exists():
-        if active_cnt > 0:
-            print(f'WARN|RP 락 없음 · active_rooms {active_cnt} · recover 권장')
-        else:
-            print('OK|RP 미사용 또는 정상')
+        print(f'OK|RP OFF · active_rooms {active_cnt}')
         return 0
 
     try:
         lock = json.loads(LOCK.read_text(encoding='utf-8'))
     except Exception:
-        print('ERROR|RP 락 손상 · recover 필요')
+        print('WARN|RP 락 손상 · recover 권장')
         return 0
 
     pid = int(lock.get('pid') or 0)
     if _pid_alive(pid):
         print(f'OK|RP 정상 · active_rooms {active_cnt}')
     else:
-        lv = 'ERROR' if active_cnt > 0 else 'WARN'
-        print(f'{lv}|RP stale 락 · pid {pid} · active_rooms {active_cnt} · recover 권장')
+        print(f'WARN|RP stale 락 · pid {pid} · active_rooms {active_cnt} · recover 권장')
     return 0
 
 
