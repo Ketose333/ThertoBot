@@ -14,7 +14,7 @@
 
 ## 파일
 - `rp_engine.py` (상태 저장 엔진)
-- `discord_rp_runtime.py` (디스코드 연결)
+- `studio/dashboard/actions/rp_runtime_action.py` (디스코드 연결, 대시보드 ON/OFF 전용)
 - 저장 경로: `memory/rp_rooms/`
   - 룸별 JSON 1개: `<platform>_<channel>.json`
   - 룸별 로그 MD 1개: [`<platform>_<channel>.md`](../../memory/rp_rooms/)
@@ -37,20 +37,17 @@
 - RP 활성 룸에서는 `!rp` 외 비RP 운영 명령에 반응하지 않는다.
 
 ## 실행
+- 기본/권장: 대시보드 `운영 실행 > RP ON / RP OFF` 단일 진입점 사용
+- 수동 점검이 필요할 때만 아래 헬스체크 사용
 ```bash
-cd /home/user/.openclaw/workspace
-source .venv/bin/activate
-python3 utility/rp/discord_rp_runtime.py
-```
-또는
-```bash
-python3 utility/taeyul/taeyul_cli.py rp-discord
+python3 utility/taeyul/taeyul_cli.py rp-healthcheck
+python3 utility/taeyul/taeyul_cli.py rp-healthcheck --recover
 ```
 
 ## RP 전용 서브에이전트 마이그레이션 (최소 패치)
 
-### 1) RP 모드 런타임을 별도 세션/프로세스로 분리
-- 실행: `python3 utility/taeyul/taeyul_cli.py rp-discord`
+### 1) RP 모드 런타임은 대시보드에서 단일 관리
+- 실행/중지는 대시보드 `RP ON / RP OFF`로만 처리
 - 토큰 우선순위: `RP_DISCORD_BOT_TOKEN` → 없으면 `DISCORD_BOT_TOKEN`
 - 권장: RP 전용 런타임 토큰 사용(메인과 완전 분리)
 
@@ -96,7 +93,7 @@ python3 utility/rp/rp_engine.py --cleanup-non-active
 - 설정 롤백: `~/.openclaw/openclaw.json.rp-backup`를 `openclaw.json`으로 복원
 - 코드 롤백: git 기준
 ```bash
-git restore utility/rp/discord_rp_runtime.py utility/rp/rp_engine.py utility/taeyul/taeyul_cli.py utility/rp/README.md
+git restore studio/dashboard/actions/rp_runtime_action.py utility/rp/rp_engine.py utility/taeyul/taeyul_cli.py utility/rp/README.md
 ```
 
 ## 주의

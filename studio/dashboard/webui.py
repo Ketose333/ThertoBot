@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -91,7 +92,10 @@ DM_BULK_LOCK = DM_RUNTIME_DIR / 'discord_bulk_delete_runtime.lock'
 DM_QUEUE_PATH = DM_RUNTIME_DIR / 'discord_bulk_delete_queue.jsonl'
 DM_RUNS_PATH = DM_RUNTIME_DIR / 'discord_bulk_delete_runs.jsonl'
 PIN_MESSAGE_FILE = WORKSPACE / 'studio' / 'dashboard' / 'config' / 'pinned_message.md'
-PIN_MESSAGE_ACTION = WORKSPACE / 'studio' / 'dashboard' / 'actions' / 'discord_pin_message.py'
+PIN_MESSAGE_ACTION = WORKSPACE / 'studio' / 'dashboard' / 'actions' / 'discord_pin_message_action.py'
+RP_RT_LOCK = WORKSPACE / 'memory' / 'rp_rooms' / '_runtime_lock.json'
+RP_RUNTIME_SCRIPT = WORKSPACE / 'studio' / 'dashboard' / 'actions' / 'rp_runtime_action.py'
+NETWORK_CFG = WORKSPACE / 'studio' / 'dashboard' / 'config' / 'network.json'
 
 
 def _system_dup_signal(jobs: list[dict]) -> tuple[str, str]:
@@ -112,7 +116,7 @@ def _system_dup_signal(jobs: list[dict]) -> tuple[str, str]:
 
 
 def _aiven_mysql_status() -> tuple[str, str, str]:
-    cmd = [PYTHON_BIN, '/home/user/.openclaw/workspace/utility/check_aiven_service.py', 'mysql-budget']
+    cmd = [PYTHON_BIN, '/home/user/.openclaw/workspace/studio/dashboard/checks/aiven_service_check.py', 'mysql-budget']
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     data = _extract_json(out)
@@ -122,35 +126,6 @@ def _aiven_mysql_status() -> tuple[str, str, str]:
     if state:
         return 'ISSUE', '#ef4444', state
     return 'WARN', '#f59e0b', (out.splitlines()[-1] if out else 'unknown')[:40]
-
-
-def _load_focus_rules() -> dict:
-    try:
-        if CRON_FOCUS_RULES.exists():
-            return json.loads(CRON_FOCUS_RULES.read_text(encoding='utf-8'))
-    except Exception:
-        pass
-    return {
-        'includeKeywords': ['youtube', 'context', 'ops-checkin', 'hygiene', 'healthcheck'],
-        'excludeKeywords': ['quiet-window', 'rp-', 'reminder', 'pokemon', 'tiktok'],
-        'requireEnabled': True,
-    }
-
-
-def _is_dashboard_focus_job(job: dict, rules: dict) -> bool:
-    name = str(job.get('name', '')).lower()
-    if not name:
-        return False
-
-    if bool(rules.get('requireEnabled', True)) and (not bool(job.get('enabled', True))):
-        return False
-
-    exclude_keywords = [str(x).lower() for x in (rules.get('excludeKeywords') or [])]
-    if any(k and (k in name) for k in exclude_keywords):
-        return False
-
-    include_keywords = [str(x).lower() for x in (rules.get('includeKeywords') or [])]
-    return any(k and (k in name) for k in include_keywords)
 
 
 def _load_dashboard_checks() -> list[dict]:
@@ -210,26 +185,73 @@ def _run_script_check(script: str) -> tuple[str, str]:
     return 'UNKNOWN', (out or '체크 결과를 읽지 못했어.')[:140]
 
 
-def _recent_runs(job_id: str, limit: int = 5) -> list[dict]:
-    ok, data, _ = gateway_call('cron.runs', {'jobId': job_id})
-    if not ok:
-        return []
-    rows = data.get('entries', []) if isinstance(data, dict) else []
-    out = [r for r in rows if str(r.get('action','')) == 'finished']
-    out.sort(key=lambda r: int(r.get('runAtMs') or 0), reverse=True)
-    return out[:limit]
+def _rp_status() -> tuple[bool, str]:
+    try:
+        if not RP_RT_LOCK.exists():
+            return False, 'OFF'
+        obj = json.loads(RP_RT_LOCK.read_text(encoding='utf-8') or '{}')
+        pid = int(obj.get('pid') or 0)
+        if pid <= 1:
+            return False, 'OFF'
+        cmdline = Path(f'/proc/{pid}/cmdline').read_text(errors='ignore')
+        if 'rp_runtime_action.py' in cmdline:
+            return True, 'ON (runtime=on)'
+        return False, 'OFF'
+    except Exception:
+        return False, 'OFF'
 
 
-def _rp_recover() -> tuple[bool, str]:
+def _rp_recover_only() -> tuple[bool, str]:
     cmd = [PYTHON_BIN, '/home/user/.openclaw/workspace/utility/taeyul/taeyul_cli.py', 'rp-healthcheck', '--recover']
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else 'RP recover 완료')
-    return False, (out.splitlines()[-1] if out else 'RP recover 실패')
+        return True, (out.splitlines()[-1] if out else 'RP 복구 완료')
+    return False, (out.splitlines()[-1] if out else 'RP 복구 실패')
 
 
+def _rp_turn_on() -> tuple[bool, str]:
+    on, st = _rp_status()
+    if on:
+        ok, msg = _rp_recover_only()
+        return ok, f'RP 이미 ON · {msg}'
 
+    ok, rec = _rp_recover_only()
+    cmd = [PYTHON_BIN, str(RP_RUNTIME_SCRIPT)]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1.0)
+    on2, st2 = _rp_status()
+    if on2:
+        return True, f'RP ON 완료 · {st2} · {rec}'
+    return False, f'RP ON 실패 · {rec}'
+
+
+def _rp_turn_off() -> tuple[bool, str]:
+    killed = 0
+    try:
+        if RP_RT_LOCK.exists():
+            obj = json.loads(RP_RT_LOCK.read_text(encoding='utf-8') or '{}')
+            pid = int(obj.get('pid') or 0)
+            if pid > 1:
+                try:
+                    os.kill(pid, 15)
+                    killed += 1
+                except Exception:
+                    pass
+            RP_RT_LOCK.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    try:
+        subprocess.run(['pkill', '-f', 'rp_runtime_action.py'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    time.sleep(0.5)
+    on, st = _rp_status()
+    if not on:
+        return True, f'RP OFF 완료 (정리 {killed}개)'
+    return False, f'RP OFF 일부 실패 · {st}'
 
 def _ensure_dm_bulk_runtime() -> None:
     # stale lock 정리
@@ -255,14 +277,14 @@ def _ensure_dm_bulk_runtime() -> None:
 
     cmd = [
         PYTHON_BIN,
-        '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete.py',
+        '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py',
         'run', '--poll-sec', '2'
     ]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _dm_bulk_delete_enqueue(channel_id: str, limit: int, delete_pinned: bool = False) -> tuple[bool, str]:
-    script = '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete.py'
+    script = '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py'
     cmd = [
         PYTHON_BIN, script,
         'enqueue', '--channel-id', channel_id, '--limit', str(limit),
@@ -272,8 +294,8 @@ def _dm_bulk_delete_enqueue(channel_id: str, limit: int, delete_pinned: bool = F
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
         _ensure_dm_bulk_runtime()
-        return True, (out.splitlines()[-1] if out else 'DM 일괄삭제 큐 등록 완료')
-    return False, (out.splitlines()[-1] if out else 'DM 일괄삭제 큐 등록 실패')
+        return True, (out.splitlines()[-1] if out else 'DM 일괄 삭제 큐 등록 완료')
+    return False, (out.splitlines()[-1] if out else 'DM 일괄 삭제 큐 등록 실패')
 
 
 def _create_and_pin_message(channel_id: str) -> tuple[bool, str]:
@@ -287,8 +309,8 @@ def _create_and_pin_message(channel_id: str) -> tuple[bool, str]:
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else '고정메시지 생성/고정 완료')
-    return False, (out.splitlines()[-1] if out else '고정메시지 생성/고정 실패')
+        return True, (out.splitlines()[-1] if out else '고정 메시지 생성/고정 완료')
+    return False, (out.splitlines()[-1] if out else '고정 메시지 생성/고정 실패')
 
 
 def _commit_push(message: str) -> tuple[bool, str]:
@@ -306,19 +328,76 @@ def _commit_push(message: str) -> tuple[bool, str]:
     return False, (out.splitlines()[-1] if out else '커밋/푸시 실패')
 
 
-def _initial_reset_enqueue(reason: str, no_latest: bool = False) -> tuple[bool, str]:
-    cmd = [
-        PYTHON_BIN, '/home/user/.openclaw/workspace/utility/taeyul/taeyul_cli.py',
-        'initial-reset-enqueue', '--reason', (reason or 'dashboard request')
-    ]
+def _initial_reset_run(reason: str, no_latest: bool = False) -> tuple[bool, str]:
+    script = '/home/user/.openclaw/workspace/studio/dashboard/actions/initial_reset_action.py'
+    cmd = [PYTHON_BIN, script]
     if no_latest:
-        cmd.insert(-2, '--no-latest')
+        cmd.append('--no-latest')
+    if reason:
+        cmd += ['--reason', reason]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else '이니셜커밋 작업 큐 등록 완료')
-    return False, (out.splitlines()[-1] if out else '이니셜커밋 작업 큐 등록 실패')
+        return True, (out.splitlines()[-1] if out else '이니셜 커밋 밀기 완료')
+    return False, (out.splitlines()[-1] if out else '이니셜 커밋 밀기 실패')
 
+
+
+
+def _load_network_cfg() -> dict:
+    try:
+        return json.loads(NETWORK_CFG.read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+
+
+def _remote_urls() -> list[str]:
+    cfg = _load_network_cfg()
+    ip = str(cfg.get('lanHostIp', '') or '').strip()
+    host = str(cfg.get('hostName', '') or '').strip()
+    ports = cfg.get('ports') or [8767, 8787, 8791]
+    out = []
+    for p in ports:
+        try:
+            pp = int(p)
+        except Exception:
+            continue
+        if ip:
+            out.append(f'http://{ip}:{pp}')
+        if host:
+            out.append(f'http://{host}:{pp}')
+    # dedupe keep order
+    seen=set(); uniq=[]
+    for u in out:
+        if u in seen: continue
+        seen.add(u); uniq.append(u)
+    return uniq
+
+
+def _run_portproxy_update() -> tuple[bool, str]:
+    cfg = _load_network_cfg()
+    script = str(cfg.get('portproxyScriptWindows', '') or '').strip()
+    ports = cfg.get('ports') or [8767, 8787, 8791]
+    ports_arg = ','.join(str(int(x)) for x in ports if str(x).isdigit()) or '8767,8787,8791'
+    if not script:
+        return False, 'network.json에 portproxyScriptWindows가 없어.'
+
+    cmds = [
+        ['powershell.exe', '-ExecutionPolicy', 'Bypass', '-File', script, '-Ports', ports_arg],
+        ['pwsh', '-ExecutionPolicy', 'Bypass', '-File', script, '-Ports', ports_arg],
+    ]
+    last = ''
+    for cmd in cmds:
+        try:
+            p = subprocess.run(cmd, text=True, capture_output=True, timeout=120)
+            out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
+            if p.returncode == 0:
+                return True, (out.splitlines()[-1] if out else 'portproxy 갱신 완료')
+            last = out[-260:]
+        except Exception as e:
+            last = str(e)
+    manual = f"관리자 PowerShell에서 실행: powershell -ExecutionPolicy Bypass -File '{script}' -Ports {ports_arg}"
+    return False, f'자동 실행 실패. {manual}'
 
 
 def _dm_bulk_runtime_status() -> tuple[str, str, str]:
@@ -370,6 +449,9 @@ def render_page(alert: str = "") -> bytes:
     sources_cfg = _load_sources_cfg()
     dm_channel_id = str(sources_cfg.get('discordDmChannelId', ''))
     dm_rt_label, dm_rt_color, dm_rt_detail = _dm_bulk_runtime_status()
+    rp_on, rp_state_text = _rp_status()
+    remote_urls = _remote_urls()
+    remote_urls_html = ''.join([f"<div><a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a></div>" for u in remote_urls]) or "<div class='muted'>network.json의 lanHostIp를 채우면 바로 링크가 보여.</div>"
     rows = []
     enabled_count = 0
     disabled_count = 0
@@ -377,7 +459,6 @@ def render_page(alert: str = "") -> bytes:
     cron_count = 0
     every_count = 0
     at_count = 0
-    timeline_items: list[tuple[str, int | None, bool]] = []
     issue_rows = []
     cards = []
     for j in jobs:
@@ -398,7 +479,6 @@ def render_page(alert: str = "") -> bytes:
         last_status_raw = str(state.get("lastStatus", "-"))
         last_status = html.escape(last_status_raw)
         next_run_ms = state.get("nextRunAtMs")
-        timeline_items.append((str(j.get("name", "(no name)")), next_run_ms, enabled))
         if enabled:
             enabled_count += 1
         else:
@@ -441,7 +521,7 @@ def render_page(alert: str = "") -> bytes:
             f"<td><code>{schedule}</code></td>"
             f"<td>{next_run}</td>"
             f"<td>"
-            f"<form method='post' action='/run' style='display:inline'><input type='hidden' name='id' value='{jid}'><button>{html.escape(btn.get('run','즉시실행'))}</button></form> "
+            f"<form method='post' action='/run' style='display:inline'><input type='hidden' name='id' value='{jid}'><button>{html.escape(btn.get('run','즉시 실행'))}</button></form> "
             f"<form method='post' action='/toggle' style='display:inline'><input type='hidden' name='id' value='{jid}'><input type='hidden' name='enabled' value={'0' if enabled else '1'}><button>{btn_toggle}</button></form> "
             f"<form method='post' action='/remove' style='display:inline' onsubmit=\"return confirm('정말 삭제할까?')\"><input type='hidden' name='id' value='{jid}'><button style='background:#4a1d1d'>{html.escape(btn.get('delete','삭제'))}</button></form>"
             f"</td>"
@@ -459,85 +539,42 @@ def render_page(alert: str = "") -> bytes:
     if not issue_rows:
         issue_rows.append("<tr><td colspan='2'>문제 의심 항목 없음</td></tr>")
 
-    # visual summary cards + timeline
-    cards = [
-        ("전체", len(jobs), "#3b82f6"),
-        ("활성", enabled_count, "#22c55e"),
-        ("비활성", disabled_count, "#64748b"),
-        ("cron", cron_count, "#a78bfa"),
-        ("every", every_count, "#f59e0b"),
-        ("at", at_count, "#06b6d4"),
-    ]
-    card_html = ''.join(
-        f"<div class='stat'><div class='k'>{html.escape(k)}</div><div class='v' style='color:{c}'>{v}</div></div>"
-        for k, v, c in cards
-    )
-
-    tl_sorted = sorted([x for x in timeline_items if x[1] is not None], key=lambda x: x[1])[:9]
-    if tl_sorted:
-        base = now_ms
-        maxv = max(max(ms - base, 1) for _, ms, _ in tl_sorted)
-        tl_rows = []
-        for name_raw, ms, en in tl_sorted:
-            assert ms is not None
-            width = max(6, int(((ms - base) / maxv) * 100))
-            width = min(100, width)
-            name = html.escape(name_raw)
-            color = '#22c55e' if en else '#64748b'
-            tl_rows.append(
-                f"<div class='tl-row'><div class='tl-name'>{name}</div><div class='tl-bar-wrap'><div class='tl-bar' style='width:{width}%;background:{color}'></div></div><div class='tl-when'>{html.escape(_fmt_kst(ms))}</div></div>"
-            )
-        timeline_html = ''.join(tl_rows)
-    else:
-        timeline_html = "<div class='muted'>예정 실행 시각 데이터가 없어.</div>"
-
     ui_ok, ui_rows, ui_raw = studio_ui_status()
     ui_running = sum(1 for r in ui_rows if bool(r.get('pidAlive')) and bool(r.get('portOpen')))
     ui_cards_list = []
+    app_cards_list = []
     for r in ui_rows:
-        if str(r.get('name','')) == 'cron':
+        nm = str(r.get('name',''))
+        if nm == 'cron':
             continue
         r_ok = bool(r.get('pidAlive')) and bool(r.get('portOpen'))
         r_color = '#22c55e' if r_ok else '#ef4444'
         r_text = 'RUN' if r_ok else 'DOWN'
         r_name = html.escape(str(r.get('name', '-')))
+        if nm in {'shorts', 'image'}:
+            app_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
+            continue
         ui_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
     aiven_label, aiven_color, aiven_detail = _aiven_mysql_status()
-    ui_cards_list.append(f"<div class='stat'><div class='k'>Aiven MySQL</div><div class='v' style='color:{aiven_color}'>{aiven_label}</div><div class='muted'>{html.escape(aiven_detail)}</div></div>")
+    ui_cards_list.append(f"<div class='stat'><div class='v' style='color:{aiven_color}'>{aiven_label}</div><div class='muted'>{html.escape(aiven_detail)}</div></div>")
     ui_cards = ''.join(ui_cards_list) or "<div class='muted'>UI 상태 데이터 없음</div>"
 
-    focus_rules = _load_focus_rules()
-    focus_jobs = sorted(
-        [j for j in jobs if _is_dashboard_focus_job(j, focus_rules)],
-        key=lambda x: str(x.get('name', '')).lower(),
-    )
-    core_rows = []
-    for j in focus_jobs:
-        nm = str(j.get('name', ''))
-        st = j.get('state', {}) or {}
-        core_rows.append(
-            f"<tr><td>{html.escape(nm)}</td><td>{'on' if j.get('enabled', True) else 'off'}</td><td>{html.escape(_fmt_kst(st.get('nextRunAtMs')))}</td><td>{html.escape(str(st.get('lastStatus', '-')))}</td></tr>"
-        )
-
-    if not core_rows:
-        core_rows.append("<tr><td colspan='4'>표시할 활성 점검 항목이 없어.</td></tr>")
-
-    runs_rows = []
-    for j in focus_jobs[:1]:
-        jid = str(j.get('id',''))
-        name = str(j.get('name','-'))
-        runs = _recent_runs(jid, limit=5)
-        if not runs:
-            runs_rows.append(f"<tr><td>{html.escape(name)}</td><td colspan='3'>runs 없음</td></tr>")
-            continue
-        last = runs[0]
-        ok_cnt = sum(1 for r in runs if str(r.get('status','')).lower() == 'ok')
-        fail_cnt = len(runs) - ok_cnt
-        dur = int(last.get('durationMs') or 0)
-        at = _fmt_kst(last.get('runAtMs'))
-        runs_rows.append(f"<tr><td>{html.escape(name)}</td><td>{at}</td><td>{ok_cnt}/{len(runs)} ok</td><td>{dur}ms</td></tr>")
-    if not runs_rows:
-        runs_rows.append("<tr><td colspan='4'>표시할 runs 데이터가 없어.</td></tr>")
+    ncfg = _load_network_cfg()
+    nip = str(ncfg.get('lanHostIp','') or '').strip()
+    nhost = str(ncfg.get('hostName','') or '').strip()
+    link_lines = []
+    for label, port in [('dashboard',8767), ('shorts',8787), ('image',8791)]:
+        links = []
+        if nip:
+            u = f"http://{nip}:{port}"
+            links.append(f"<a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a>")
+        if nhost:
+            u = f"http://{nhost}:{port}"
+            links.append(f"<a href='{html.escape(u)}' target='_blank'>{html.escape(u)}</a>")
+        if links:
+            link_lines.append(f"<div><b>{label}</b> · " + " / ".join(links) + "</div>")
+    remote_urls_html = ''.join(link_lines) or "<div class='muted'>network.json의 lanHostIp를 채우면 바로 링크가 보여.</div>"
+    app_cards_html = ''.join(app_cards_list) or "<div class='muted'>shorts/image 상태 데이터 없음</div>"
 
     def _lv_color(lv: str) -> str:
         return {'OK': '#22c55e', 'WARN': '#f59e0b', 'ERROR': '#ef4444'}.get(lv, '#94a3b8')
@@ -648,21 +685,26 @@ details.fold > summary::-webkit-details-marker{{display:none}}
       <div class='stat'><div class='k'>비활성</div><div class='v'>{disabled_count}</div></div>
       <div class='stat'><div class='k'>문제 의심</div><div class='v' style='color:{'#ef4444' if problem_count else '#22c55e'}'>{problem_count}</div></div>
       <div class='stat'><div class='k'>Studio UI 정상</div><div class='v' style='color:{'#22c55e' if ui_running else '#ef4444'}'>{ui_running}/{len(ui_rows)}</div></div>
-      <div class='stat'><div class='k'>바로가기</div><div class='v'><a href='http://127.0.0.1:8787' target='_blank'>shorts</a> / <a href='http://127.0.0.1:8791' target='_blank'>image</a></div></div>
     </div>
   </div>
 
   <div class='dash-grid'>
     <div class='panel'>
-      <h2>{html.escape(sec.get('studioUi','Studio UI 상태'))}</h2>
-      <div class='stats'>{ui_cards}</div>
+      <h2>Aiven 상태 & 바로가기</h2>
+      <div class='stats' style='margin-bottom:10px'>{ui_cards}</div>
+      <div class='muted' style='margin-bottom:8px'>mysql-budget 관리 페이지 이동</div>
+      <a href='https://console.aiven.io' target='_blank' style='display:inline-block;background:#173b2a;border:1px solid #2aa748;color:#e9eef5;padding:8px 12px;border-radius:8px;text-decoration:none'>Aiven Console 열기</a>
       {ui_err_html}
     </div>
 
     <div class='panel'>
-      <h2>{html.escape(sec.get('aiven','Aiven 바로가기'))}</h2>
-      <div class='muted' style='margin-bottom:8px'>mysql-budget 관리 페이지 이동</div>
-      <a href='https://console.aiven.io' target='_blank' style='display:inline-block;background:#173b2a;border:1px solid #2aa748;color:#e9eef5;padding:8px 12px;border-radius:8px;text-decoration:none'>Aiven Console 열기</a>
+      <h2>원격 접속 & 포트 복구</h2>
+      <div class='stats' style='margin-bottom:10px'>{app_cards_html}</div>
+      <div class='muted' style='margin-bottom:8px'>같은 네트워크 접속 주소</div>
+      <div style='font-size:12px;line-height:1.6;margin-bottom:10px'>{remote_urls_html}</div>
+      <form method='post' action='/portproxy-refresh'>
+        <button class='btn btn-blue'>포트 프록시 갱신</button>
+      </form>
     </div>
 
     <div class='panel'>
@@ -674,22 +716,29 @@ details.fold > summary::-webkit-details-marker{{display:none}}
     </div>
 
     <div class='panel'>
-      <h2>{html.escape(sec.get('rpRecover','운영 실행'))}</h2>
+      <h2>{html.escape(sec.get('operations','운영 실행'))}</h2>
       <div class='op-grid'>
-        <form method='post' action='/rp-recover' class='op-card'>
-          <div class='op-title'>RP 런타임 복구</div>
-          <div class='op-desc'>stale/room 이상 감지 시 복구 실행</div>
-          <button class='btn btn-green'>{html.escape(btn.get('rpRecover','RP healthcheck --recover'))}</button>
-        </form>
+        <div class='op-card'>
+          <div class='op-title'>RP 런타임</div>
+          <div class='op-desc'>현재 상태: <b style='color:{'#22c55e' if rp_on else '#ef4444'}'>{'ON' if rp_on else 'OFF'}</b> · {html.escape(rp_state_text)}</div>
+          <div class='grid' style='grid-template-columns:1fr 1fr;gap:8px'>
+            <form method='post' action='/rp-on'>
+              <button class='btn btn-green'>RP ON</button>
+            </form>
+            <form method='post' action='/rp-off' onsubmit="return confirm('RP를 끌까?')"> 
+              <button class='btn btn-red'>RP OFF</button>
+            </form>
+          </div>
+        </div>
 
         <form method='post' action='/dm-bulk-delete' class='op-card'>
-          <div class='op-title'>DM 일괄삭제</div>
+          <div class='op-title'>DM 일괄 삭제</div>
           <div class='op-desc'>대시보드 전용 실행 · 대상 채널 {html.escape(dm_channel_id)}</div>
           <div class='muted' style='color:{dm_rt_color}'>runtime {dm_rt_label} · {html.escape(dm_rt_detail)}</div>
           <label class='op-label'>삭제 개수</label>
           <input name='limit' type='number' min='1' max='2000' value='300'>
-          <label class='op-check'><input name='deletePinned' type='checkbox' value='1' style='width:auto'> 고정메시지도 삭제</label>
-          <button class='btn btn-lime'>디엠 일괄삭제 실행</button>
+          <label class='op-check'><input name='deletePinned' type='checkbox' value='1' style='width:auto'> 고정 메시지도 삭제</label>
+          <button class='btn btn-lime'>DM 일괄 삭제 실행</button>
         </form>
 
         <form method='post' action='/commit-push' class='op-card'>
@@ -697,32 +746,32 @@ details.fold > summary::-webkit-details-marker{{display:none}}
           <div class='op-desc'>현재 워크스페이스 변경사항 반영</div>
           <label class='op-label'>커밋 메시지</label>
           <input name='message' placeholder='기본값 자동'>
-          <button class='btn btn-blue'>커밋푸시 실행</button>
+          <button class='btn btn-blue'>커밋 푸시 실행</button>
         </form>
 
-        <form method='post' action='/initial-reset' class='op-card danger' onsubmit="return confirm('이니셜커밋 큐를 등록할까? (force push 포함)')">
-          <div class='op-title'>이니셜커밋으로 밀기</div>
-          <div class='op-desc'>히스토리 정리 큐 등록 (force push 포함)</div>
+        <form method='post' action='/initial-reset' class='op-card danger' onsubmit="return confirm('이니셜 커밋을 진행할까? (강제 푸시 포함)')">
+          <div class='op-title'>이니셜 커밋으로 밀기</div>
+          <div class='op-desc'>히스토리 정리 즉시 실행 (강제 푸시 포함)</div>
           <label class='op-label'>사유</label>
           <input name='reason' placeholder='reason' value='dashboard requested initial reset'>
-          <label class='op-check'><input name='noLatest' type='checkbox' value='1' style='width:auto'> latest 재적용 없이 이니셜만</label>
-          <button class='btn btn-red'>이니셜커밋으로 밀기</button>
+          <label class='op-check'><input name='noLatest' type='checkbox' value='1' style='width:auto'> 최신 변경 재적용 없이 이니셜만</label>
+          <button class='btn btn-red'>이니셜 커밋으로 밀기</button>
         </form>
       </div>
     </div>
 
     <div class='panel col-span-2'>
-      <h2>{html.escape(sec.get('pinMessage','고정메시지 관리'))}</h2>
+      <h2>{html.escape(sec.get('pin_message','고정 메시지 관리'))}</h2>
       <div class='op-grid'>
         <div class='op-card'>
-          <div class='op-title'>고정메시지 내용 파일</div>
+          <div class='op-title'>고정 메시지 내용 파일</div>
           <div class='op-desc'>{html.escape(str(PIN_MESSAGE_FILE))}</div>
           <div class='muted'>이 파일 수정 후 아래 버튼으로 1회 전송+고정</div>
         </div>
         <form method='post' action='/pin-message' class='op-card'>
-          <div class='op-title'>고정메시지 생성 및 즉시 고정</div>
+          <div class='op-title'>고정 메시지 생성 및 즉시 고정</div>
           <div class='op-desc'>대상 채널: {html.escape(dm_channel_id)}</div>
-          <button class='btn btn-blue'>고정메시지 생성 및 고정</button>
+          <button class='btn btn-blue'>고정 메시지 생성 및 고정</button>
         </form>
       </div>
     </div>
@@ -829,14 +878,17 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/run":
                 jid = _val(form, "id")
                 ok, _, raw = gateway_call("cron.run", {"jobId": jid})
-                alert = f"즉시실행 요청 완료: {jid}" if ok else f"실행 실패: {raw[-300:]}"
+                alert = f"즉시 실행 요청 완료: {jid}" if ok else f"실행 실패: {raw[-300:]}"
             elif path == "/toggle":
                 jid = _val(form, "id")
                 enabled = _val(form, "enabled") == "1"
                 ok, _, raw = gateway_call("cron.update", {"jobId": jid, "patch": {"enabled": enabled}})
                 alert = f"상태 변경 완료: {jid} -> {'on' if enabled else 'off'}" if ok else f"상태 변경 실패: {raw[-300:]}"
-            elif path == "/rp-recover":
-                ok, msg = _rp_recover()
+            elif path == "/rp-on":
+                ok, msg = _rp_turn_on()
+                alert = msg
+            elif path == "/rp-off":
+                ok, msg = _rp_turn_off()
                 alert = msg
             elif path == "/dm-bulk-delete":
                 sources_cfg = _load_sources_cfg()
@@ -856,7 +908,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/initial-reset":
                 reason = _val(form, "reason", "dashboard requested initial reset")
                 no_latest = _val(form, "noLatest") == "1"
-                ok, msg = _initial_reset_enqueue(reason, no_latest)
+                ok, msg = _initial_reset_run(reason, no_latest)
                 alert = msg
             elif path == "/pin-message":
                 sources_cfg = _load_sources_cfg()
@@ -865,6 +917,9 @@ class Handler(BaseHTTPRequestHandler):
                     ok, msg = False, 'sources.json에 discordDmChannelId가 없어.'
                 else:
                     ok, msg = _create_and_pin_message(channel_id)
+                alert = msg
+            elif path == "/portproxy-refresh":
+                ok, msg = _run_portproxy_update()
                 alert = msg
             else:
                 alert = "지원하지 않는 액션"

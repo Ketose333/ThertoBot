@@ -2,18 +2,27 @@
 정책: [`policy/media.md`](../../policy/media.md), [`policy/ops.md`](../../policy/ops.md)
 
 포함 스크립트
-- Discord bulk delete 실제 구현: `studio/dashboard/actions/discord_bulk_delete.py`
+- Discord bulk delete 실제 구현: `studio/dashboard/actions/discord_bulk_delete_action.py`
 
-## 런타임 사용
+## 기본 운영
+
+- 기본 경로는 대시보드(`studio/dashboard/webui.py`)에서 실행한다.
+- 대시보드의 `운영 실행 > DM 일괄 삭제`를 우선 사용한다.
+
+## 수동/백업 실행
 
 ```bash
-# 런타임 시작(상시)
-python3 utility/taeyul/taeyul_cli.py bulk-delete-runtime --poll-sec 2
+# 런타임 시작(수동)
+/home/user/.openclaw/workspace/.venv/bin/python \
+  studio/dashboard/actions/discord_bulk_delete_action.py run --poll-sec 2
 
-# 작업 큐 등록
-python3 utility/taeyul/taeyul_cli.py bulk-delete-enqueue \
+# 작업 큐 등록(수동)
+/home/user/.openclaw/workspace/.venv/bin/python \
+  studio/dashboard/actions/discord_bulk_delete_action.py enqueue \
   --channel-id 1470802274518433885 \
-  --limit 300
+  --limit 300 --auto-author --skip-pinned
+
+# 권장: 대시보드 운영 실행 카드에서 직접 실행
 ```
 
 런타임 파일:

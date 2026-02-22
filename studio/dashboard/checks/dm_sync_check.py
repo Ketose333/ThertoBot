@@ -1,28 +1,70 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, subprocess
+
+import json
 from pathlib import Path
 
-CFG = Path('/home/user/.openclaw/workspace/studio/dashboard/config/sources.json')
+ROOT = Path('/home/user/.openclaw/workspace')
+DM = ROOT / 'memory/channels/discord_dm_ketose.md'
+GLOBAL = ROOT / 'memory/global-context.md'
+
+REQUIRED_DM_HEADINGS = [
+    '## DM_CANONICAL_POLICY (authoritative)',
+    '## IMPORT_FROM_CHANNELS',
+    '## EXPORT_TO_ALL_CHANNELS',
+]
+
+
+def _has_nonempty_bullets(text: str, heading: str) -> bool:
+    i = text.find(heading)
+    if i < 0:
+        return False
+    tail = text[i + len(heading):]
+    j = tail.find('\n## ')
+    block = tail if j < 0 else tail[:j]
+    lines = [ln.strip() for ln in block.splitlines() if ln.strip().startswith('- ')]
+    if not lines:
+        return False
+    if len(lines) == 1 and lines[0] in {'- (empty)', '- (none)'}:
+        return False
+    return True
 
 
 def main() -> int:
-    cfg = json.loads(CFG.read_text(encoding='utf-8'))
-    script = Path(cfg.get('dmSyncCheckScript', ''))
-    if not script.exists():
-        print('UNKNOWN|동기화 검사 스크립트가 없어.')
-        return 0
-    p = subprocess.run(['python3', str(script)], text=True, capture_output=True)
-    out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip().lower()
-    if p.returncode == 0:
+    ok = True
+    problems: list[str] = []
+
+    dm_text = DM.read_text(encoding='utf-8') if DM.exists() else ''
+    global_text = GLOBAL.read_text(encoding='utf-8') if GLOBAL.exists() else ''
+
+    if not DM.exists():
+        ok = False
+        problems.append('dm file missing')
+    if not GLOBAL.exists():
+        ok = False
+        problems.append('global-context missing')
+
+    for h in REQUIRED_DM_HEADINGS:
+        if h not in dm_text:
+            ok = False
+            problems.append(f'missing heading: {h}')
+
+    if not _has_nonempty_bullets(dm_text, '## DM_CANONICAL_POLICY (authoritative)'):
+        ok = False
+        problems.append('DM_CANONICAL_POLICY is empty')
+
+    if '## DM_SYNC_EXPORT' not in global_text:
+        ok = False
+        problems.append('global DM_SYNC_EXPORT missing')
+
+    if ok:
         print('OK|최근 점검에서 동기화 이상이 발견되지 않았어.')
-        return 0
-    if 'missing' in out or '누락' in out:
-        print('ERROR|동기화 누락 항목이 있어. 상세 로그 확인이 필요해.')
-    elif 'mismatch' in out or '불일치' in out:
-        print('ERROR|동기화 불일치가 있어. 기준 소스 재동기화가 필요해.')
     else:
-        print('ERROR|동기화 검사에서 오류가 발생했어. 검사 로그를 확인해줘.')
+        if any('missing' in p for p in problems):
+            print('ERROR|동기화 누락 항목이 있어. 상세 로그 확인이 필요해.')
+        else:
+            print('ERROR|동기화 검사에서 오류가 발생했어. 검사 로그를 확인해줘.')
+
     return 0
 
 

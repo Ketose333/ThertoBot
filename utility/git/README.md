@@ -17,26 +17,10 @@ bash /home/user/.openclaw/workspace/utility/git/initial_reset_with_latest.sh
 옵션:
 - `--no-latest` : 후속 커밋 단계 생략(이니셜만 반영)
 
-## 런타임 사용
+## 대시보드 기본 실행
 
-```bash
-# 런타임 시작(상시)
-python3 utility/taeyul/taeyul_cli.py initial-reset-runtime --poll-sec 5
-
-# 작업 큐 등록(기본: latest 재적용 포함)
-python3 utility/taeyul/taeyul_cli.py initial-reset-enqueue --reason "history cleanup"
-
-# latest 재적용 없이 이니셜만
-python3 utility/taeyul/taeyul_cli.py initial-reset-enqueue --no-latest --reason "initial only"
-```
-
-런타임 파일:
-- queue: `memory/runtime/git_initial_reset_queue.jsonl`
-- runs: `memory/runtime/git_initial_reset_runs.jsonl`
-
-중복 방지:
-- 동일 옵션 작업이 큐에 이미 있으면 재큐잉하지 않음
-- 직전 성공 작업이 최근(기본 5분)일 때는 재큐잉하지 않음
+- 기본 경로는 대시보드(`studio/dashboard/webui.py`)의 `이니셜 커밋으로 밀기` 액션을 사용한다.
+- 대시보드에서는 큐 등록이 아닌 즉시 실행으로 동작한다.
 
 ## Gitignore 위생 런타임
 

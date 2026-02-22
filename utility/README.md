@@ -6,7 +6,7 @@
   - 가이드: [`utility/common/README.md`](./common/README.md)
 - `discord/` : 디스코드 전용 유틸/가이드
   - 가이드: [`utility/discord/README.md`](./discord/README.md)
-  - 예: `discord_bulk_delete_runtime.py`
+  - 예: `studio/dashboard/actions/discord_bulk_delete_action.py`
 - `git/` : Git 초기화/위생 런타임
   - 가이드: [`utility/git/README.md`](./git/README.md)
 - `rp/` : RP 런타임/운영

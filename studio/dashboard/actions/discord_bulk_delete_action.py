@@ -36,6 +36,10 @@ def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
         f.write(json.dumps(obj, ensure_ascii=False) + '\n')
 
 
+def _write_single_jsonl(path: Path, obj: dict[str, Any]) -> None:
+    path.write_text(json.dumps(obj, ensure_ascii=False) + '\n', encoding='utf-8')
+
+
 def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
@@ -287,7 +291,7 @@ def runtime_loop(poll_sec: float = 2.0) -> int:
                 time.sleep(max(0.5, poll_sec))
                 continue
             result = _run_job(job)
-            _append_jsonl(RUNS_PATH, result)
+            _write_single_jsonl(RUNS_PATH, result)
             print(f"[{result['finished_at']}] {result['id']} {result['status']} code={result['code']}")
     except KeyboardInterrupt:
         print('discord bulk delete runtime stopped')

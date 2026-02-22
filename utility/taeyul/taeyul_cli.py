@@ -94,32 +94,10 @@ def main() -> int:
     p_shorts.add_argument("--caption-font", default="")
     p_shorts.add_argument("--caption-y-offset", type=int, default=0)
 
-    sub.add_parser("rp-discord", help="run Discord RP Mode Runtime")
     p_rph = sub.add_parser("rp-healthcheck", help="check RP runtime integrity and optionally recover runtime-only issues")
-
-    p_rps = sub.add_parser("rp-discord-supervisor", help="run RP discord supervisor (auto-restart)")
-    p_rps.add_argument("--min-restart-sec", type=float, default=1.0)
-    p_rps.add_argument("--max-restart-sec", type=float, default=20.0)
-    p_rps.add_argument("--stable-sec", type=float, default=120.0)
 
     p_bdr = sub.add_parser("bulk-delete-runtime", help="run Discord bulk-delete queue runtime")
     p_bdr.add_argument("--poll-sec", type=float, default=2.0)
-    p_bde = sub.add_parser("bulk-delete-enqueue", help="enqueue Discord bulk-delete job")
-    p_bde.add_argument("--channel-id", required=True)
-    p_bde.add_argument("--limit", type=int, default=300)
-    p_bde.add_argument("--author-id", type=int, default=None)
-    p_bde.add_argument("--auto-author", action="store_true", default=True)
-    p_bde.add_argument("--no-auto-author", dest="auto_author", action="store_false")
-    p_bde.add_argument("--after-message-id", type=int, default=None)
-    p_bde.add_argument("--skip-pinned", action="store_true", default=True)
-    p_bde.add_argument("--no-skip-pinned", dest="skip_pinned", action="store_false")
-
-    p_gir = sub.add_parser("initial-reset-runtime", help="run git initial-reset queue runtime")
-    p_gir.add_argument("--poll-sec", type=float, default=5.0)
-    p_gie = sub.add_parser("initial-reset-enqueue", help="enqueue git initial-reset job")
-    p_gie.add_argument("--no-latest", action="store_true")
-    p_gie.add_argument("--reason", default="")
-
     p_ghr = sub.add_parser("gitignore-hygiene-runtime", help="run gitignore hygiene queue runtime")
     p_ghr.add_argument("--poll-sec", type=float, default=10.0)
     p_ghe = sub.add_parser("gitignore-hygiene-enqueue", help="enqueue gitignore hygiene job")
@@ -175,21 +153,6 @@ def main() -> int:
         append_retro("veo", "ok" if rc == 0 else f"fail({rc})", "생성 지연/실패", "실패 시 모델/프롬프트 1개만 조정")
         return rc
 
-    if a.cmd == "rp-discord":
-        script = Path('/home/user/.openclaw/workspace/utility/rp/discord_rp_runtime.py')
-        try:
-            return subprocess.run(["python3", str(script)]).returncode
-        except KeyboardInterrupt:
-            print("RP Mode Runtime stopped.")
-            return 130
-
-    if a.cmd == "rp-discord-supervisor":
-        script = Path('/home/user/.openclaw/workspace/utility/rp/rp_supervisor.py')
-        return subprocess.run(["python3", str(script),
-                               "--min-restart-sec", str(a.min_restart_sec),
-                               "--max-restart-sec", str(a.max_restart_sec),
-                               "--stable-sec", str(a.stable_sec)]).returncode
-
     if a.cmd == "rp-healthcheck":
         from utility.rp.rp_engine import runtime_healthcheck
 
@@ -200,49 +163,9 @@ def main() -> int:
         return rc
 
     if a.cmd == "bulk-delete-runtime":
-        script = Path('/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete.py')
+        script = Path('/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py')
         rc = subprocess.run(["python3", str(script), "run", "--poll-sec", str(a.poll_sec)]).returncode
         append_retro("bulk-delete-runtime", "ok" if rc == 0 else f"fail({rc})", "동시 실행/잠금 충돌", "큐 상태 확인 후 단일 런타임 유지")
-        return rc
-
-    if a.cmd == "bulk-delete-enqueue":
-        script = Path('/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete.py')
-        args = [
-            "enqueue",
-            "--channel-id", str(a.channel_id),
-            "--limit", str(a.limit),
-        ]
-        if a.author_id is not None:
-            args += ["--author-id", str(a.author_id)]
-        if a.auto_author:
-            args += ["--auto-author"]
-        else:
-            args += ["--no-auto-author"]
-        if a.after_message_id is not None:
-            args += ["--after-message-id", str(a.after_message_id)]
-        if a.skip_pinned:
-            args += ["--skip-pinned"]
-        else:
-            args += ["--no-skip-pinned"]
-        rc = subprocess.run(["python3", str(script), *args]).returncode
-        append_retro("bulk-delete-enqueue", "ok" if rc == 0 else f"fail({rc})", "잘못된 채널/옵션 enqueue", "enqueue 결과와 run 로그 교차 확인")
-        return rc
-
-    if a.cmd == "initial-reset-runtime":
-        script = Path('/home/user/.openclaw/workspace/utility/git/git_initial_reset_runtime.py')
-        rc = subprocess.run(["python3", str(script), "run", "--poll-sec", str(a.poll_sec)]).returncode
-        append_retro("initial-reset-runtime", "ok" if rc == 0 else f"fail({rc})", "중복 enqueue/강제푸시 리스크", "완료 후 HEAD/원격 해시 확인")
-        return rc
-
-    if a.cmd == "initial-reset-enqueue":
-        script = Path('/home/user/.openclaw/workspace/utility/git/git_initial_reset_runtime.py')
-        args = ["enqueue"]
-        if a.no_latest:
-            args += ["--no-latest"]
-        if a.reason:
-            args += ["--reason", a.reason]
-        rc = subprocess.run(["python3", str(script), *args]).returncode
-        append_retro("initial-reset-enqueue", "ok" if rc == 0 else f"fail({rc})", "중복 초기화 요청", "큐 dedupe 상태 확인")
         return rc
 
     if a.cmd == "gitignore-hygiene-runtime":
