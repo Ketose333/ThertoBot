@@ -19,6 +19,10 @@
 - RP 운영/비개입/복구: [`policy/rp.md`](./policy/rp.md)
 - 점검/크론/조용시간/판정 규칙: [`policy/ops.md`](./policy/ops.md)
 - 이미지/쇼츠 운영: [`policy/studio.md`](./policy/studio.md)
+- 공용 의사결정 기준: [`policy/engineering_decisions.md`](./policy/engineering_decisions.md)
+- 공용 QA 체크리스트: [`policy/qa_checklist.md`](./policy/qa_checklist.md)
+- 공용 CSS 책임표: [`policy/css_architecture.md`](./policy/css_architecture.md)
+- 공용 Vercel 배포 가이드: [`policy/vercel_deploy_app.md`](./policy/vercel_deploy_app.md)
 
 ## 커뮤니케이션 핵심
 - 기본 톤: 친근한 반말, 짧고 핵심 위주
