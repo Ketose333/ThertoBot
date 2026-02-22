@@ -406,6 +406,20 @@ def _run_portproxy_update() -> tuple[bool, str]:
     return False, manual
 
 
+def _cleanup_vercel_deployments(dry_run: bool = False) -> tuple[bool, str]:
+    script = WORKSPACE / 'tcg' / 'utility' / 'vercel' / 'cleanup_deployments_keep_current.py'
+    if not script.exists():
+        return False, f'스크립트 없음: {script}'
+    cmd = [PYTHON_BIN, str(script), '--yes']
+    if dry_run:
+        cmd.append('--dry-run')
+    p = subprocess.run(cmd, cwd=str(WORKSPACE / 'tcg'), text=True, capture_output=True)
+    out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
+    if p.returncode == 0:
+        return True, (out.splitlines()[-1] if out else ('dry-run 완료' if dry_run else '배포 정리 완료'))
+    return False, (out.splitlines()[-1] if out else '배포 정리 실패')
+
+
 def _dm_bulk_runtime_status() -> tuple[str, str, str]:
     alive = False
     pid = None
@@ -597,7 +611,7 @@ details.fold > summary::-webkit-details-marker{{display:none}}
       <h2>{html.escape(sec.get('operations','운영 실행'))}</h2>
       <div class='op-grid'>
         <div class='op-card'>
-          <div class='op-title'>RP 런타임</div>
+          <div class='op-title'>런타임 제어</div>
           <div class='op-desc'>현재 상태: <b style='color:{'#22c55e' if rp_on else '#ef4444'}'>{'ON' if rp_on else 'OFF'}</b> · {html.escape(rp_state_text)}</div>
           <div class='grid' style='grid-template-columns:1fr 1fr;gap:8px'>
             <form method='post' action='/rp-on'>
@@ -605,6 +619,16 @@ details.fold > summary::-webkit-details-marker{{display:none}}
             </form>
             <form method='post' action='/rp-off' onsubmit="return confirm('RP를 끌까?')"> 
               <button class='btn btn-red'>RP OFF</button>
+            </form>
+          </div>
+          <div class='muted' style='margin-top:8px'>Vercel 배포 정리 (tcg 프로젝트 고정)</div>
+          <div class='muted' style='font-size:12px;margin-bottom:8px'>dry-run은 삭제 없이 대상만 미리 보여주고, 배포 정리 실행은 실제 삭제해.</div>
+          <div class='grid' style='grid-template-columns:1fr 1fr;gap:8px'>
+            <form method='post' action='/vercel-cleanup'>
+              <button class='btn btn-blue'>배포 정리 실행</button>
+            </form>
+            <form method='post' action='/vercel-cleanup-dry'>
+              <button class='btn'>배포 정리 dry-run</button>
             </form>
           </div>
         </div>
@@ -737,6 +761,7 @@ def _post_api() -> dict:
         "initial_reset_run": _initial_reset_run,
         "create_and_pin_message": _create_and_pin_message,
         "run_portproxy_update": _run_portproxy_update,
+        "cleanup_vercel_deployments": _cleanup_vercel_deployments,
     }
 
 

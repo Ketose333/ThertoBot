@@ -21,6 +21,7 @@ RUNS_PATH = RUNTIME_DIR / 'discord_bulk_delete_runs.jsonl'
 LOCK_PATH = RUNTIME_DIR / 'discord_bulk_delete_runtime.lock'
 
 BULK_DELETE_MAX_AGE_DAYS = 14
+MAX_QUEUE_LINES = 200
 
 
 def now_iso() -> str:
@@ -31,9 +32,17 @@ def _ensure_dirs() -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
-    with path.open('a', encoding='utf-8') as f:
-        f.write(json.dumps(obj, ensure_ascii=False) + '\n')
+def _append_jsonl(path: Path, obj: dict[str, Any], *, max_lines: int | None = None) -> None:
+    lines: list[str] = []
+    if path.exists():
+        try:
+            lines = [ln for ln in path.read_text(encoding='utf-8').splitlines() if ln.strip()]
+        except Exception:
+            lines = []
+    lines.append(json.dumps(obj, ensure_ascii=False))
+    if isinstance(max_lines, int) and max_lines > 0 and len(lines) > max_lines:
+        lines = lines[-max_lines:]
+    path.write_text(('\n'.join(lines) + ('\n' if lines else '')), encoding='utf-8')
 
 
 def _write_single_jsonl(path: Path, obj: dict[str, Any]) -> None:
@@ -224,7 +233,7 @@ def enqueue_job(
         'verbose': bool(verbose),
         'status': 'queued',
     }
-    _append_jsonl(QUEUE_PATH, job)
+    _append_jsonl(QUEUE_PATH, job, max_lines=MAX_QUEUE_LINES)
     return job_id
 
 

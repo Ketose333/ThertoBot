@@ -16,6 +16,9 @@ RUNTIME_DIR = BASE / 'memory' / 'runtime'
 QUEUE_PATH = RUNTIME_DIR / 'gitignore_hygiene_queue.jsonl'
 RUNS_PATH = RUNTIME_DIR / 'gitignore_hygiene_runs.jsonl'
 LOCK_PATH = RUNTIME_DIR / 'gitignore_hygiene_runtime.lock'
+MAX_QUEUE_LINES = 200
+MAX_RUNS_LINES = 50
+MAX_FILES_IN_RUN = 200
 
 
 def now_iso() -> str:
@@ -26,9 +29,17 @@ def _ensure_dirs() -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
-    with path.open('a', encoding='utf-8') as f:
-        f.write(json.dumps(obj, ensure_ascii=False) + '\n')
+def _append_jsonl(path: Path, obj: dict[str, Any], *, max_lines: int | None = None) -> None:
+    lines: list[str] = []
+    if path.exists():
+        try:
+            lines = [ln for ln in path.read_text(encoding='utf-8').splitlines() if ln.strip()]
+        except Exception:
+            lines = []
+    lines.append(json.dumps(obj, ensure_ascii=False))
+    if isinstance(max_lines, int) and max_lines > 0 and len(lines) > max_lines:
+        lines = lines[-max_lines:]
+    path.write_text(('\n'.join(lines) + ('\n' if lines else '')), encoding='utf-8')
 
 
 def enqueue_job(*, reason: str = '') -> str:
@@ -40,7 +51,7 @@ def enqueue_job(*, reason: str = '') -> str:
         'reason': (reason or '').strip(),
         'status': 'queued',
     }
-    _append_jsonl(QUEUE_PATH, job)
+    _append_jsonl(QUEUE_PATH, job, max_lines=MAX_QUEUE_LINES)
     return job_id
 
 
@@ -88,7 +99,7 @@ def _run_job(job: dict[str, Any]) -> dict[str, Any]:
         'job': job,
         'removed_count': removed,
         'tracked_ignored_count': len(files),
-        'files': files,
+        'files': files[:MAX_FILES_IN_RUN],
         'stdout': rm_out,
         'stderr': rm_err,
     }
@@ -125,7 +136,7 @@ def runtime_loop(poll_sec: float = 10.0) -> int:
                 time.sleep(max(1.0, poll_sec))
                 continue
             result = _run_job(job)
-            _append_jsonl(RUNS_PATH, result)
+            _append_jsonl(RUNS_PATH, result, max_lines=MAX_RUNS_LINES)
             print(f"[{result['finished_at']}] {result['id']} {result['status']} removed={result['removed_count']}")
     except KeyboardInterrupt:
         print('gitignore hygiene runtime stopped')

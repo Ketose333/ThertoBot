@@ -48,10 +48,21 @@ def room_json_path(ctx: Ctx) -> Path:
 def room_md_path(ctx: Ctx) -> Path:
     return ROOMS_DIR / f"{room_id(ctx)}.md"
 
+MAX_ROOM_MD_LINES = 2000
+
+
 def _append_md(path: Path, line: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a', encoding='utf-8') as f:
-        f.write(line.rstrip() + '\n')
+    lines: list[str] = []
+    if path.exists():
+        try:
+            lines = path.read_text(encoding='utf-8').splitlines()
+        except Exception:
+            lines = []
+    lines.append(line.rstrip())
+    if len(lines) > MAX_ROOM_MD_LINES:
+        lines = lines[-MAX_ROOM_MD_LINES:]
+    path.write_text('\n'.join(lines) + ('\n' if lines else ''), encoding='utf-8')
 
 def _load_active_rooms() -> dict[str, Any]:
     if not ACTIVE_ROOMS_PATH.exists():

@@ -64,6 +64,14 @@ def handle_post(path: str, form: dict[str, list[str]], api: dict) -> str:
             _, msg = api["run_portproxy_update"]()
             return msg
 
+        if path == "/vercel-cleanup":
+            _, msg = api["cleanup_vercel_deployments"](False)
+            return msg
+
+        if path == "/vercel-cleanup-dry":
+            _, msg = api["cleanup_vercel_deployments"](True)
+            return msg
+
         return "지원하지 않는 액션"
 
     except Exception as e:
