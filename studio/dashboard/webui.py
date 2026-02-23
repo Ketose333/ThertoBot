@@ -322,10 +322,32 @@ def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
     repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
     cmd = [
         'bash', '-lc',
-        f"cd {json.dumps(repo_dir)} && git add -A && (git diff --cached --quiet && echo 'NO_CHANGES' || (git commit -m {json.dumps(msg)} && git push))"
+        (
+            f"cd {json.dumps(repo_dir)} && git add -A && "
+            "CURRENT_BRANCH=\"$(git rev-parse --abbrev-ref HEAD)\" && "
+            "if git diff --cached --quiet; then "
+            "  if git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then "
+            "    if [ -n \"$(git log --oneline @{u}..HEAD)\" ]; then "
+            "      (git push || git push --set-upstream origin \"$CURRENT_BRANCH\") && echo 'PUSHED_AHEAD'; "
+            "    else "
+            "      echo 'NO_CHANGES'; "
+            "    fi; "
+            "  else "
+            "    if [ -n \"$(git log --oneline)\" ]; then "
+            "      (git push --set-upstream origin \"$CURRENT_BRANCH\" || git push) && echo 'PUSHED_AHEAD'; "
+            "    else "
+            "      echo 'NO_CHANGES'; "
+            "    fi; "
+            "  fi; "
+            "else "
+            f"  git commit -m {json.dumps(msg)} && (git push --set-upstream origin \"$CURRENT_BRANCH\" || git push); "
+            "fi"
+        )
     ]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
+    if 'PUSHED_AHEAD' in out:
+        return True, f'[{target}] 로컬 커밋(앞선 이력) 푸시 완료.'
     if 'NO_CHANGES' in out:
         return True, f'[{target}] 커밋할 변경사항이 없어.'
     if p.returncode == 0:
