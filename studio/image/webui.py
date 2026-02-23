@@ -360,15 +360,15 @@ def _form(selected: str, data: dict, alert: str = '') -> bytes:
     </div>
     <label>출력 파일 패턴(output_name_pattern)</label><input name='direct_name_pattern' value='{g('_direct_name_pattern','direct_image_{n}.jpg')}'>
     <label class='checkline'><input type='checkbox' name='direct_purge' {'checked' if data.get('_direct_purge', True) else ''}> 기존 출력 정리 후 생성(direct_purge)</label>
-    <div class='action-row'><button name='action' value='run_direct' type='submit'>즉시 실행</button></div>
   </div>
 
   <div class='section'>
     <h3>배포</h3>
-    <label>publish_channel_id (allowlist + DM 고정 dropdown)</label><select name='publish_channel_id'>{upload_options_html}</select>
+    <label>publish_channel_id</label><select name='publish_channel_id'>{upload_options_html}</select>
     <label class='checkline'><input type='checkbox' name='upload_with_caption' {upload_caption_checked}> 업로드 시 프롬프트/모델 문구 함께 첨부</label>
   </div>
 
+  <button name='action' value='run_direct' type='submit'>즉시 실행</button>
 </form>
 """
     return render_page(

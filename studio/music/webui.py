@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,23 +15,88 @@ from common.webui_shell import render_page
 
 WORKSPACE = Path('/home/user/.openclaw/workspace')
 PRESETS_PATH = WORKSPACE / 'studio' / 'music' / 'strudel_presets.json'
+DEFAULT_PUBLISH_CHANNEL_ID = '1470802274518433885'
+STRUDEL_WAV_DIRS = [
+    Path('/home/user/.openclaw/media/audio/strudel'),
+    Path('/home/user/.openclaw/media/bgm/strudel'),
+]
+
+
+def _load_publish_allowlist() -> list[tuple[str, str]]:
+    file_path = WORKSPACE / 'studio' / 'publish_channels_allowlist.json'
+    out: list[tuple[str, str]] = []
+    if file_path.exists():
+        try:
+            data = json.loads(file_path.read_text(encoding='utf-8'))
+            if isinstance(data, list):
+                for row in data:
+                    if not isinstance(row, dict):
+                        continue
+                    cid = str(row.get('id', '')).strip()
+                    label = str(row.get('label', '')).strip() or f'채널 {cid}'
+                    if cid.isdigit():
+                        out.append((cid, f'{label} ({cid})'))
+            elif isinstance(data, dict):
+                for cid, label in data.items():
+                    cid = str(cid).strip()
+                    if cid.isdigit():
+                        out.append((cid, f"{str(label).strip() or f'채널 {cid}'} ({cid})"))
+        except Exception:
+            out = []
+
+    dedup: dict[str, str] = {}
+    for cid, label in out:
+        dedup[cid] = label
+    return sorted(dedup.items(), key=lambda x: x[1].lower())
+
+
+def _discord_publish_channel_options() -> list[tuple[str, str]]:
+    default_opt = (DEFAULT_PUBLISH_CHANNEL_ID, f'요청 채널 ({DEFAULT_PUBLISH_CHANNEL_ID})')
+    allowed = _load_publish_allowlist()
+    if not allowed:
+        return [default_opt]
+    if not any(cid == DEFAULT_PUBLISH_CHANNEL_ID for cid, _ in allowed):
+        return [default_opt] + allowed
+    return allowed
+
+
+def _latest_strudel_wav() -> Path | None:
+    files: list[Path] = []
+    for root in STRUDEL_WAV_DIRS:
+        if root.exists():
+            files.extend([p for p in root.glob('*.wav') if p.is_file()])
+    if not files:
+        return None
+    files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def _publish_latest_wav_to_discord(channel_id: str) -> tuple[bool, str]:
+    cid = (channel_id or '').strip()
+    if not cid or not cid.isdigit():
+        return False, '채널 ID가 올바르지 않아'
+
+    target = _latest_strudel_wav()
+    if not target:
+        return False, 'Strudel 생성 wav가 없어. 먼저 렌더/저장부터 해줘'
+
+    py = str(WORKSPACE / '.venv' / 'bin' / 'python3') if (WORKSPACE / '.venv' / 'bin' / 'python3').exists() else 'python3'
+    cmd = [
+        py,
+        str(WORKSPACE / 'utility' / 'discord' / 'discord_send_media.py'),
+        '--channel-id', cid,
+        '--file', str(target),
+        '--content', f'Strudel wav 배포: {target.name}',
+    ]
+    p = subprocess.run(cmd, cwd=str(WORKSPACE), text=True, capture_output=True)
+    if p.returncode == 0:
+        return True, (p.stdout or f'배포 완료: {target.name}').strip()
+    return False, (p.stderr or p.stdout or '배포 실패').strip()
+
 
 DEFAULT_PRESETS = {
-    'breakcore-fsharp-starter': """stack(
-  s(\"bd*2 [bd bd bd] [~ bd]\").gain(0.95),
-  s(\"[~ sd]*2\").gain(0.7),
-  s(\"hh*8\").gain(0.3),
-  note(\"[f#4 f#5]*2 [c#5 e5 g#5] [f#5 c#5]\")
-    .sound(\"sawtooth\")
-    .lpf(sine.slow(8).range(600, 3200))
-    .gain(0.18)
-).fast(1.75)""",
-    'hard-glitch': """stack(
-  s(\"[bd*4, bd*8]\").gain(1),
-  s(\"sd*2\").sometimesBy(0.4, rev).gain(0.55),
-  s(\"hh*16\").degradeBy(0.25).gain(0.22),
-  note(\"<f#5 c#6 g#5 e5>\").sound(\"square\").gain(0.16)
-).fast(2.2)""",
+    'city-night-house': 'stack(s("bd*4").gain(1.1), s("~ sd ~ sd").gain(0.85), s("hh*8").gain(0.35)).slow(1)',
+    'warm-rnb-loop': 'stack(s("bd [~ bd] bd ~").gain(1.0), s("~ ~ sd ~").gain(0.7), s("hh*8").degradeBy(0.2).gain(0.28)).slow(1.05)',
 }
 
 
@@ -57,14 +123,18 @@ def _page(body: str) -> bytes:
     return render_page(
         title='Music UI',
         heading='뮤직 생성 UI',
-        desc='Strudel 프리셋 선택/편집/저장/재생을 shorts/image와 같은 UI 톤으로 맞춘 버전이야.',
-        badges=['Studio 연동', 'Preset CRUD', 'Strudel Play/Stop'],
         body_html=body,
     )
 
 
 def _form(presets: dict[str, str]) -> str:
     presets_json = json.dumps(presets, ensure_ascii=False)
+    publish_options = _discord_publish_channel_options()
+    publish_html = ''.join(
+        f'<option value="{html.escape(cid)}">{html.escape(label)}</option>'
+        for cid, label in publish_options
+    )
+
     return f'''
 <div class="section">
   <h3>기본 제어</h3>
@@ -89,14 +159,12 @@ def _form(presets: dict[str, str]) -> str:
   <h3>프리셋 관리</h3>
   <div class="row">
     <div>
-      <label>새 프리셋 이름</label>
+      <label>프리셋 이름</label>
       <input id="newName" placeholder="예: melodic-rush" />
-      <button type="button" class="sub" id="newPreset">새 프리셋 생성</button>
     </div>
     <div>
-      <label>현재 프리셋 저장</label>
-      <button type="button" class="sub" id="savePreset">프리셋 저장(메모리)</button>
-      <button type="button" id="saveAll">전체 저장(파일 반영)</button>
+      <label>저장</label>
+      <button type="button" id="upsertPreset">새로 만들기/현재 저장</button>
     </div>
   </div>
   <label>코드 편집</label>
@@ -106,14 +174,25 @@ def _form(presets: dict[str, str]) -> str:
 <div class="section">
   <h3>저장 경로</h3>
   <pre>{html.escape(str(PRESETS_PATH))}</pre>
+  <pre id="lastSavedWav">최근 저장 wav: (없음)</pre>
 </div>
+
+<div class="section">
+  <h3>배포</h3>
+  <label>publish_channel_id</label>
+  <select id="publishChannel">{publish_html}</select>
+</div>
+
+<button type="button" id="runNow">즉시 실행</button>
 
 <script src="https://unpkg.com/@strudel/web@1.3.0"></script>
 <script>
 let presets = {presets_json};
+if (!presets || typeof presets !== 'object') presets = {{}};
 const sel = document.getElementById('preset');
 const code = document.getElementById('code');
 const msg = document.getElementById('msg');
+const lastSavedWav = document.getElementById('lastSavedWav');
 
 function setMsg(text, bad=false) {{
   msg.style.color = bad ? '#ff9f7a' : '#9fafd9';
@@ -146,45 +225,59 @@ async function init() {{
   }}
 }}
 
-document.getElementById('play').addEventListener('click', async () => {{
+async function playNow() {{
   try {{
     await init();
+    if (window.Tone && typeof window.Tone.start === 'function') {{ try {{ await window.Tone.start(); }} catch (_) {{}} }}
+    if (window.audioContext && typeof window.audioContext.resume === 'function') {{ try {{ await window.audioContext.resume(); }} catch (_) {{}} }}
     // eslint-disable-next-line no-eval
     eval(`${{code.value}}.play()`);
     setMsg('재생 중');
   }} catch (e) {{
     setMsg('실행 오류: ' + e.message, true);
   }}
-}});
+}}
 
-document.getElementById('stop').addEventListener('click', () => {{
+function stopNow() {{
   try {{
     if (typeof hush === 'function') hush();
     setMsg('정지');
   }} catch (e) {{
     setMsg('정지 오류: ' + e.message, true);
   }}
-}});
+}}
 
-document.getElementById('newPreset').addEventListener('click', () => {{
-  const name = (document.getElementById('newName').value || '').trim();
-  if (!name) return setMsg('새 프리셋 이름을 입력해줘', true);
-  presets[name] = presets[sel.value] || 'stack(\\n  s("bd*4")\\n)';
-  renderList();
-  sel.value = name;
-  code.value = presets[name];
-  setMsg(`생성됨: ${{name}}`);
-}});
-
-document.getElementById('savePreset').addEventListener('click', () => {{
-  if (!sel.value) return setMsg('프리셋이 없어', true);
-  presets[sel.value] = code.value;
-  setMsg(`저장됨(메모리): ${{sel.value}}`);
-}});
-
-document.getElementById('saveAll').addEventListener('click', async () => {{
+async function runNow() {{
   try {{
-    if (sel.value) presets[sel.value] = code.value;
+    const body = new URLSearchParams();
+    body.set('channel_id', document.getElementById('publishChannel').value || '');
+    const r = await fetch('/publish-wav', {{
+      method:'POST',
+      headers:{{'content-type':'application/x-www-form-urlencoded'}},
+      body,
+    }});
+    const data = await r.json();
+    if (!data.ok) return setMsg('배포 실패: ' + (data.error || ''), true);
+    setMsg('배포 완료: ' + (data.message || 'ok'));
+    if (data.path && lastSavedWav) lastSavedWav.textContent = '최근 저장 wav: ' + data.path;
+  }} catch (e) {{
+    setMsg('배포 오류: ' + e.message, true);
+  }}
+}}
+
+document.getElementById('play').addEventListener('click', playNow);
+document.getElementById('stop').addEventListener('click', stopNow);
+document.getElementById('runNow').addEventListener('click', runNow);
+
+document.getElementById('upsertPreset').addEventListener('click', async () => {{
+  try {{
+    const name = (document.getElementById('newName').value || sel.value || '').trim();
+    if (!name) return setMsg('프리셋 이름을 입력해줘', true);
+
+    presets[name] = code.value || '';
+    renderList();
+    sel.value = name;
+
     const body = new URLSearchParams();
     body.set('presets_json', JSON.stringify(presets));
     const r = await fetch('/save', {{
@@ -194,7 +287,7 @@ document.getElementById('saveAll').addEventListener('click', async () => {{
     }});
     const data = await r.json();
     if (!data.ok) return setMsg('저장 실패: ' + (data.error || ''), true);
-    setMsg('파일 저장 완료');
+    setMsg('저장 완료: ' + name);
   }} catch (e) {{
     setMsg('저장 오류: ' + e.message, true);
   }}
@@ -219,21 +312,31 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, _page(_form(_load_presets())))
 
     def do_POST(self):  # noqa: N802
-        if self.path != '/save':
-            self._send(404, json.dumps({'ok': False, 'error': 'not found'}), 'application/json; charset=utf-8')
-            return
         length = int(self.headers.get('Content-Length', '0') or 0)
         raw = self.rfile.read(length).decode('utf-8', errors='replace')
         form = parse_qs(raw)
-        try:
-            payload = json.loads((form.get('presets_json', ['{}'])[0] or '{}'))
-            if not isinstance(payload, dict):
-                raise ValueError('invalid payload')
-            presets = {str(k): str(v) for k, v in payload.items() if str(k).strip()}
-            _save_presets(presets)
-            self._send(200, json.dumps({'ok': True}), 'application/json; charset=utf-8')
-        except Exception as e:
-            self._send(400, json.dumps({'ok': False, 'error': str(e)}), 'application/json; charset=utf-8')
+
+        if self.path == '/save':
+            try:
+                payload = json.loads((form.get('presets_json', ['{}'])[0] or '{}'))
+                if not isinstance(payload, dict):
+                    raise ValueError('invalid payload')
+                presets = {str(k): str(v) for k, v in payload.items() if str(k).strip()}
+                _save_presets(presets)
+                self._send(200, json.dumps({'ok': True}), 'application/json; charset=utf-8')
+            except Exception as e:
+                self._send(400, json.dumps({'ok': False, 'error': str(e)}), 'application/json; charset=utf-8')
+            return
+
+        if self.path == '/publish-wav':
+            channel_id = (form.get('channel_id', [''])[0] or '').strip()
+            ok, msg = _publish_latest_wav_to_discord(channel_id)
+            code = 200 if ok else 400
+            path = str(_latest_strudel_wav() or '') if ok else ''
+            self._send(code, json.dumps({'ok': ok, 'message': msg, 'path': path, 'error': '' if ok else msg}), 'application/json; charset=utf-8')
+            return
+
+        self._send(404, json.dumps({'ok': False, 'error': 'not found'}), 'application/json; charset=utf-8')
 
 
 def main() -> int:
