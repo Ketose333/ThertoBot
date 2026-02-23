@@ -334,18 +334,29 @@ def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
     return False, f'[{target}] {tail}'
 
 
-def _initial_reset_run(reason: str, no_latest: bool = False, target: str = 'workspace') -> tuple[bool, str]:
-    script = '/home/user/.openclaw/workspace/studio/dashboard/actions/initial_reset_action.py'
-    cmd = [PYTHON_BIN, script, '--target', target]
-    if no_latest:
-        cmd.append('--no-latest')
-    if reason:
-        cmd += ['--reason', reason]
+def _initial_reset_run(reason: str, target: str = 'workspace') -> tuple[bool, str]:
+    repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
+    # 커밋+푸시와 동일하게 대시보드 내부에서 직접 실행(외부 스크립트 의존 제거)
+    cmd = [
+        'bash', '-lc',
+        (
+            f"set -euo pipefail; cd {json.dumps(repo_dir)}; "
+            "CURRENT_BRANCH=\"$(git rev-parse --abbrev-ref HEAD)\"; "
+            "git checkout --orphan temp_initial_dashboard; "
+            "git add -A; "
+            "git commit -m 'chore: initial commit'; "
+            "git branch -D \"$CURRENT_BRANCH\"; "
+            "git branch -m \"$CURRENT_BRANCH\"; "
+            "git push --force-with-lease origin \"$CURRENT_BRANCH\"; "
+            "echo done: dashboard initial reset completed"
+        )
+    ]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
         tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 완료'
-        return True, f'[{target}] {tail}'
+        suffix = f' ({reason})' if reason else ''
+        return True, f'[{target}] {tail}{suffix}'
     tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 실패'
     return False, f'[{target}] {tail}'
 
@@ -685,9 +696,9 @@ details.fold > summary::-webkit-details-marker{{display:none}}
           <button class='btn btn-blue'>커밋 푸시 실행</button>
         </form>
 
-        <form method='post' action='/initial-reset' class='op-card danger' onsubmit="return confirm('이니셜 커밋을 진행할까? (강제 푸시 포함)')">
+        <form method='post' action='/initial-reset' class='op-card danger' onsubmit="return confirm('이니셜 커밋을 진행할까?')">
           <div class='op-title'>이니셜 커밋으로 밀기</div>
-          <div class='op-desc'>선택한 저장소 히스토리 정리 즉시 실행 (강제 푸시 포함)</div>
+          <div class='op-desc'>선택한 저장소 히스토리 정리 즉시 실행</div>
           <label class='op-label'>대상 저장소</label>
           <select name='target'>
             <option value='workspace'>workspace</option>
@@ -695,7 +706,6 @@ details.fold > summary::-webkit-details-marker{{display:none}}
           </select>
           <label class='op-label'>사유</label>
           <input name='reason' placeholder='reason' value='dashboard requested initial reset'>
-          <label class='op-check'><input name='noLatest' type='checkbox' value='1' style='width:auto'> 최신 변경 재적용 없이 이니셜만 (workspace만 적용)</label>
           <button class='btn btn-red'>이니셜 커밋으로 밀기</button>
         </form>
       </div>

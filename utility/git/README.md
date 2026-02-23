@@ -8,19 +8,10 @@
 3) orphan 이니셜 커밋 생성 + 원격 강제 푸시
 4) 보관한 최신 변경사항을 후속 커밋으로 push
 
-## 실행
+## 대시보드 동작 기준(현재)
 
-```bash
-bash /home/user/.openclaw/workspace/utility/git/initial_reset_with_latest.sh
-```
-
-옵션:
-- `--no-latest` : 후속 커밋 단계 생략(이니셜만 반영)
-
-## 대시보드 기본 실행
-
-- 기본 경로는 대시보드(`studio/dashboard/webui.py`)의 `이니셜 커밋으로 밀기` 액션을 사용한다.
-- 대시보드에서는 큐 등록이 아닌 즉시 실행으로 동작한다.
+- 대시보드(`studio/dashboard/webui.py`)의 `이니셜 커밋으로 밀기`는 **외부 action 스크립트 없이 webui 내부에서 직접 실행**한다.
+- 현재 이니셜 리셋은 대시보드 액션 기준으로만 운영한다.
 
 ## Gitignore 위생 런타임
 

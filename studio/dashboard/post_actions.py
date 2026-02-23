@@ -51,11 +51,10 @@ def handle_post(path: str, form: dict[str, list[str]], api: dict) -> str:
 
         if path == "/initial-reset":
             reason = val(form, "reason", "dashboard requested initial reset")
-            no_latest = val(form, "noLatest") == "1"
             target = val(form, "target", "workspace")
             if target not in {"workspace", "tcg"}:
                 target = "workspace"
-            _, msg = api["initial_reset_run"](reason, no_latest, target)
+            _, msg = api["initial_reset_run"](reason, target)
             return msg
 
         if path == "/pin-message":
