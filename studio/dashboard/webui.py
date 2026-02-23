@@ -317,7 +317,8 @@ def _create_and_pin_message(channel_id: str) -> tuple[bool, str]:
 
 
 def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
-    msg = (message or '').strip() or 'chore: update dashboard'
+    default_msg = 'chore(tcg): update from dashboard' if target == 'tcg' else 'chore(workspace): update from dashboard'
+    msg = (message or '').strip() or default_msg
     repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
     cmd = [
         'bash', '-lc',
@@ -336,6 +337,12 @@ def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
 
 def _initial_reset_run(reason: str, target: str = 'workspace') -> tuple[bool, str]:
     repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
+    reason_clean = ' '.join((reason or '').split()).strip()
+    if reason_clean:
+        init_msg = f'chore: initial commit ({reason_clean})'
+    else:
+        init_msg = 'chore: initial commit'
+
     # 커밋+푸시와 동일하게 대시보드 내부에서 직접 실행(외부 스크립트 의존 제거)
     cmd = [
         'bash', '-lc',
@@ -344,7 +351,7 @@ def _initial_reset_run(reason: str, target: str = 'workspace') -> tuple[bool, st
             "CURRENT_BRANCH=\"$(git rev-parse --abbrev-ref HEAD)\"; "
             "git checkout --orphan temp_initial_dashboard; "
             "git add -A; "
-            "git commit -m 'chore: initial commit'; "
+            f"git commit -m {json.dumps(init_msg)}; "
             "git branch -D \"$CURRENT_BRANCH\"; "
             "git branch -m \"$CURRENT_BRANCH\"; "
             "git push --force-with-lease origin \"$CURRENT_BRANCH\"; "
@@ -355,8 +362,7 @@ def _initial_reset_run(reason: str, target: str = 'workspace') -> tuple[bool, st
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
         tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 완료'
-        suffix = f' ({reason})' if reason else ''
-        return True, f'[{target}] {tail}{suffix}'
+        return True, f'[{target}] {tail}'
     tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 실패'
     return False, f'[{target}] {tail}'
 
@@ -424,7 +430,7 @@ def _run_portproxy_update() -> tuple[bool, str]:
 
 def _cleanup_vercel_deployments(dry_run: bool = False) -> tuple[bool, str]:
     tcg_dir = WORKSPACE / 'tcg'
-    project_name = 'boundless'
+    project_name = 'nulsight'
     scope = 'team_QtyiuCIFBns7dbiuGkXiPKgq'
 
     list_cmd = ['vercel', 'list', project_name, '--yes', '--scope', scope]

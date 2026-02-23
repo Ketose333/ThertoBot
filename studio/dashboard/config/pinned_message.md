@@ -1,7 +1,7 @@
 📌 운영 고정 메시지
 
 - 워크스페이스 저장소: <https://github.com/Ketose333/TaeyulBot.git>
-- TCG 저장소: <https://github.com/Ketose333/boundless.git>
+- TCG 저장소: <https://github.com/Ketose333/nulsight.git>
 - 대시보드: <http://127.0.0.1:8767> / <http://192.168.45.222:8767>
 
 직접 실행 체크리스트
