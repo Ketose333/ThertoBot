@@ -7,9 +7,13 @@ import json
 import os
 import socket
 import subprocess
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.webui_shell import render_page
 
 WORKSPACE = Path('/home/user/.openclaw/workspace')
 PRESETS_DIR = WORKSPACE / 'studio' / 'image' / 'presets'
@@ -309,36 +313,6 @@ def _form(selected: str, data: dict, alert: str = '') -> bytes:
     upload_caption_checked = 'checked' if bool(data.get('_upload_with_caption', True)) else ''
 
     body = f"""
-<!doctype html>
-<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Image Preset UI</title>
-<style>
-:root{{--bg:#0b1020;--card:#131a2d;--line:#2a3658;--text:#e8ecff;--muted:#9fafd9;--accent:#2aa748;--accent2:#4f8cff}}
-*{{box-sizing:border-box}}
-html,body{{max-width:100%;overflow-x:hidden}}
-body{{font-family:Inter,Segoe UI,Arial,sans-serif;max-width:980px;margin:20px auto;padding:0 16px;background:radial-gradient(1200px 500px at 10% -20%,#1c2a52 0%,var(--bg) 55%);color:var(--text)}}
-h2{{margin:0 0 6px 0;font-size:26px;overflow-wrap:anywhere;word-break:break-word}}
-.desc{{color:var(--muted);margin:0 0 16px 0;font-size:14px}}
-.section{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;margin:12px 0;min-width:0}}
-.section h3{{margin:0 0 8px 0;font-size:15px;color:#d8e2ff;overflow-wrap:anywhere;word-break:break-word}}
-label{{display:block;margin-top:10px;font-weight:600;color:#d7e0ff;font-size:13px}}
-input,textarea,select{{width:100%;padding:9px 10px;border-radius:10px;border:1px solid #3a4a79;background:#0f1527;color:var(--text)}}
-input::placeholder,textarea::placeholder{{color:#9fafd9}}
-input:focus,textarea:focus,select:focus{{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(79,140,255,.2)}}
-textarea{{min-height:120px;resize:vertical}}
-.row{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
-.action-row{{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}}
-button{{min-height:44px;padding:11px 16px;border:0;border-radius:11px;background:linear-gradient(90deg,var(--accent),#2fd37c);color:#fff;font-weight:800;cursor:pointer}}
-button.secondary{{background:#1f2b47;border:1px solid #3a4a79}}
-.alert{{background:#133222;border:1px solid #2aa748;padding:10px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}}
-.checkline{{display:flex;align-items:center;gap:8px;font-weight:500;color:#d7e0ff;margin-top:12px}}
-.checkline input{{width:auto;margin:0}}
-.badges{{margin-bottom:10px}}
-.badge{{display:inline-block;padding:4px 8px;border-radius:999px;background:#152344;border:1px solid #304777;color:#b4c7ff;font-size:12px;margin-right:6px}}
-@media (max-width:780px){{body{{padding:0 12px}}.row{{grid-template-columns:1fr}}input,textarea,select,button{{font-size:16px}}}}
-</style></head><body>
-<h2>이미지 생성 UI</h2>
-<p class='desc'>쇼츠 UI와 같은 리듬으로 정리한 이미지 생성 화면이야. 프리셋 저장/실행과 즉시 실행을 한 화면에서 처리해.</p>
-<div class='badges'><span class='badge'>프리셋</span><span class='badge'>즉시 실행</span><span class='badge'>업로드</span></div>
 {alert_html}
 <form method='post'>
   <div class='section'>
@@ -360,17 +334,17 @@ button.secondary{{background:#1f2b47;border:1px solid #3a4a79}}
       <div><label>설명(description)</label><input name='description' value='{g('description')}'></div>
     </div>
     <div class='row'>
-      <div><label>모델(model)</label><input name='model' value='{g('model','nano-banana-pro-preview')}'><small style='color:#9fafd9;display:block;margin-top:6px'>기본값: nano-banana-pro-preview</small></div>
+      <div><label>모델(model)</label><input name='model' value='{g('model','nano-banana-pro-preview')}'><small class='hint'>기본값: nano-banana-pro-preview</small></div>
       <div><label>프로필(profile)</label><select name='profile'>{profile_options_html}</select></div>
     </div>
     <div class='row'>
-      <div><label>비율(aspect_ratio)</label><input name='aspect_ratio' value='{g('aspect_ratio','1:1')}'><small style='color:#9fafd9;display:block;margin-top:6px'>기본값: 1:1</small></div>
-      <div><label>생성 개수(count)</label><input name='count' value='{g('count','1')}'><small style='color:#9fafd9;display:block;margin-top:6px'>기본값: 1</small></div>
+      <div><label>비율(aspect_ratio)</label><input name='aspect_ratio' value='{g('aspect_ratio','1:1')}'><small class='hint'>기본값: 1:1</small></div>
+      <div><label>생성 개수(count)</label><input name='count' value='{g('count','1')}'><small class='hint'>기본값: 1</small></div>
     </div>
     <label>출력 파일 패턴(output_name_pattern)</label><input name='output_name_pattern' value='{g('output_name_pattern')}'>
     <label>레퍼런스 이미지(ref_image, 선택)</label><input name='ref_image' value='{g('ref_image')}'>
     <label class='checkline'><input type='checkbox' name='purge_existing_outputs' {checked}> 기존 출력 정리 후 생성(purge_existing_outputs)</label>
-    <label>요청 프롬프트(prompt)</label><textarea name='prompt'>{g('prompt')}</textarea>
+    <label>요청 프롬프트(prompt)</label><textarea class='textarea-compact' name='prompt'>{g('prompt')}</textarea>
   </div>
 
   <div class='section'>
@@ -386,7 +360,6 @@ button.secondary{{background:#1f2b47;border:1px solid #3a4a79}}
     </div>
     <label>출력 파일 패턴(output_name_pattern)</label><input name='direct_name_pattern' value='{g('_direct_name_pattern','direct_image_{n}.jpg')}'>
     <label class='checkline'><input type='checkbox' name='direct_purge' {'checked' if data.get('_direct_purge', True) else ''}> 기존 출력 정리 후 생성(direct_purge)</label>
-    <small style='color:#9fafd9;display:block;margin-top:6px'>디스코드에서 요청하던 자연어 문장을 그대로 넣으면 돼.</small>
     <div class='action-row'><button name='action' value='run_direct' type='submit'>즉시 실행</button></div>
   </div>
 
@@ -397,9 +370,14 @@ button.secondary{{background:#1f2b47;border:1px solid #3a4a79}}
   </div>
 
 </form>
-</body></html>
 """
-    return body.encode('utf-8')
+    return render_page(
+        title='Image Preset UI',
+        heading='이미지 생성 UI',
+        desc='쇼츠 UI와 같은 리듬으로 정리한 이미지 생성 화면이야. 프리셋 저장/실행과 즉시 실행을 한 화면에서 처리해.',
+        badges=['프리셋', '즉시 실행', '업로드'],
+        body_html=body,
+    )
 
 
 class Handler(BaseHTTPRequestHandler):

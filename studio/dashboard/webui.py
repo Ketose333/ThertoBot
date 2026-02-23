@@ -402,7 +402,7 @@ def _remote_urls() -> list[str]:
     cfg = _load_network_cfg()
     ip = str(cfg.get('lanHostIp', '') or '').strip()
     host = str(cfg.get('hostName', '') or '').strip()
-    ports = cfg.get('ports') or [8767, 8787, 8791]
+    ports = cfg.get('ports') or [8767, 8787, 8791, 8795]
     out = []
     for p in ports:
         try:
@@ -424,8 +424,8 @@ def _remote_urls() -> list[str]:
 def _run_portproxy_update() -> tuple[bool, str]:
     cfg = _load_network_cfg()
     script = str(cfg.get('portproxyScriptWindows', '') or '').strip()
-    ports = cfg.get('ports') or [8767, 8787, 8791]
-    ports_arg = ','.join(str(int(x)) for x in ports if str(x).isdigit()) or '8767,8787,8791'
+    ports = cfg.get('ports') or [8767, 8787, 8791, 8795]
+    ports_arg = ','.join(str(int(x)) for x in ports if str(x).isdigit()) or '8767,8787,8791,8795'
     if not script:
         return False, 'network.json에 portproxyScriptWindows가 없어.'
 
@@ -445,7 +445,7 @@ def _run_portproxy_update() -> tuple[bool, str]:
             last = str(e)
     manual = (
         "자동 실행 실패. 아래 관리자 PowerShell 한 줄을 그대로 실행해줘:\n"
-        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"$src=''\\\\wsl.localhost\\Ubuntu\\home\\user\\.openclaw\\workspace\\utility\\common\\windows_wsl_portproxy_autoupdate.ps1''; $dst=Join-Path $env:TEMP ''windows_wsl_portproxy_autoupdate.ps1''; if(!(Test-Path $src)){throw ''스크립트 없음''}; Copy-Item $src $dst -Force; Unblock-File $dst; Set-ExecutionPolicy -Scope Process Bypass -Force; & $dst -Ports ''8767,8787,8791''\"'"
+        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"$src=''\\\\wsl.localhost\\Ubuntu\\home\\user\\.openclaw\\workspace\\utility\\common\\windows_wsl_portproxy_autoupdate.ps1''; $dst=Join-Path $env:TEMP ''windows_wsl_portproxy_autoupdate.ps1''; if(!(Test-Path $src)){throw ''스크립트 없음''}; Copy-Item $src $dst -Force; Unblock-File $dst; Set-ExecutionPolicy -Scope Process Bypass -Force; & $dst -Ports ''8767,8787,8791,8795''\"'"
     )
     return False, manual
 

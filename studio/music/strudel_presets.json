@@ -1,0 +1,4 @@
+{
+  "breakcore-fsharp-starter": "stack(\n  s(\"bd*2 [bd bd bd] [~ bd]\").gain(0.95),\n  s(\"[~ sd]*2\").gain(0.7),\n  s(\"hh*8\").gain(0.3),\n  note(\"[f#4 f#5]*2 [c#5 e5 g#5] [f#5 c#5]\")\n    .sound(\"sawtooth\")\n    .lpf(sine.slow(8).range(600, 3200))\n    .gain(0.18)\n).fast(1.75)",
+  "hard-glitch": "stack(\n  s(\"[bd*4, bd*8]\").gain(1),\n  s(\"sd*2\").sometimesBy(0.4, rev).gain(0.55),\n  s(\"hh*16\").degradeBy(0.25).gain(0.22),\n  note(\"<f#5 c#6 g#5 e5>\").sound(\"square\").gain(0.16)\n).fast(2.2)"
+}

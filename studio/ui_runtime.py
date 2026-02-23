@@ -26,6 +26,10 @@ UI_TARGETS = {
         'port': 8791,
         'cmd': ['python3', str(WORKSPACE / 'studio' / 'image' / 'webui.py'), '--host', '0.0.0.0', '--port', '8791'],
     },
+    'music': {
+        'port': 8795,
+        'cmd': ['python3', str(WORKSPACE / 'studio' / 'music' / 'webui.py'), '--host', '0.0.0.0', '--port', '8795'],
+    },
 }
 
 
@@ -112,7 +116,7 @@ def _targets_from_arg(arg: str) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description='Studio UI unified runtime controller')
     ap.add_argument('action', choices=['start', 'stop', 'restart', 'status'])
-    ap.add_argument('--target', default='all', choices=['all', 'cron', 'shorts', 'image'])
+    ap.add_argument('--target', default='all', choices=['all', 'cron', 'shorts', 'image', 'music'])
     args = ap.parse_args()
 
     targets = _targets_from_arg(args.target)

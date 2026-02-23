@@ -115,7 +115,7 @@ def build_dashboard_context(alert: str, api: dict) -> dict:
         r_color = '#22c55e' if r_ok else '#ef4444'
         r_text = 'RUN' if r_ok else 'DOWN'
         r_name = html.escape(str(r.get('name', '-')))
-        if nm in {'shorts', 'image'}:
+        if nm in {'shorts', 'image', 'music'}:
             app_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
             continue
         ui_cards_list.append(f"<div class='stat'><div class='k'>{r_name}</div><div class='v' style='color:{r_color}'>{r_text}</div></div>")
@@ -128,7 +128,7 @@ def build_dashboard_context(alert: str, api: dict) -> dict:
     nip = str(ncfg.get('lanHostIp', '') or '').strip()
     nhost = str(ncfg.get('hostName', '') or '').strip()
     link_lines = []
-    for label, port in [('dashboard', 8767), ('shorts', 8787), ('image', 8791)]:
+    for label, port in [('dashboard', 8767), ('shorts', 8787), ('image', 8791), ('music', 8795)]:
         links = []
         if nip:
             u = f"http://{nip}:{port}"
