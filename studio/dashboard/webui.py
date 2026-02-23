@@ -316,24 +316,27 @@ def _create_and_pin_message(channel_id: str) -> tuple[bool, str]:
     return False, (out.splitlines()[-1] if out else '고정 메시지 생성/고정 실패')
 
 
-def _commit_push(message: str) -> tuple[bool, str]:
+def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
     msg = (message or '').strip() or 'chore: update dashboard'
+    repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
     cmd = [
         'bash', '-lc',
-        f"cd /home/user/.openclaw/workspace && git add -A && (git diff --cached --quiet && echo 'NO_CHANGES' || (git commit -m {json.dumps(msg)} && git push))"
+        f"cd {json.dumps(repo_dir)} && git add -A && (git diff --cached --quiet && echo 'NO_CHANGES' || (git commit -m {json.dumps(msg)} && git push))"
     ]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if 'NO_CHANGES' in out:
-        return True, '커밋할 변경사항이 없어.'
+        return True, f'[{target}] 커밋할 변경사항이 없어.'
     if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else '커밋/푸시 완료')
-    return False, (out.splitlines()[-1] if out else '커밋/푸시 실패')
+        tail = out.splitlines()[-1] if out else '커밋/푸시 완료'
+        return True, f'[{target}] {tail}'
+    tail = out.splitlines()[-1] if out else '커밋/푸시 실패'
+    return False, f'[{target}] {tail}'
 
 
-def _initial_reset_run(reason: str, no_latest: bool = False) -> tuple[bool, str]:
+def _initial_reset_run(reason: str, no_latest: bool = False, target: str = 'workspace') -> tuple[bool, str]:
     script = '/home/user/.openclaw/workspace/studio/dashboard/actions/initial_reset_action.py'
-    cmd = [PYTHON_BIN, script]
+    cmd = [PYTHON_BIN, script, '--target', target]
     if no_latest:
         cmd.append('--no-latest')
     if reason:
@@ -341,8 +344,10 @@ def _initial_reset_run(reason: str, no_latest: bool = False) -> tuple[bool, str]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else '이니셜 커밋 밀기 완료')
-    return False, (out.splitlines()[-1] if out else '이니셜 커밋 밀기 실패')
+        tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 완료'
+        return True, f'[{target}] {tail}'
+    tail = out.splitlines()[-1] if out else '이니셜 커밋 밀기 실패'
+    return False, f'[{target}] {tail}'
 
 
 
@@ -407,17 +412,41 @@ def _run_portproxy_update() -> tuple[bool, str]:
 
 
 def _cleanup_vercel_deployments(dry_run: bool = False) -> tuple[bool, str]:
-    script = WORKSPACE / 'tcg' / 'utility' / 'vercel' / 'cleanup_deployments_keep_current.py'
-    if not script.exists():
-        return False, f'스크립트 없음: {script}'
-    cmd = [PYTHON_BIN, str(script), '--yes']
+    tcg_dir = WORKSPACE / 'tcg'
+    project_name = 'boundless'
+    scope = 'team_QtyiuCIFBns7dbiuGkXiPKgq'
+
+    list_cmd = ['vercel', 'list', project_name, '--yes', '--scope', scope]
+    lp = subprocess.run(list_cmd, cwd=str(tcg_dir), text=True, capture_output=True)
+    lout = ((lp.stdout or '') + ('\n' + lp.stderr if lp.stderr else '')).strip()
+    if lp.returncode != 0:
+        tail = lout.splitlines()[-1] if lout else '배포 목록 조회 실패'
+        return False, tail
+
+    urls = []
+    for ln in lout.splitlines():
+        s = ln.strip()
+        if s.startswith('https://') and '.vercel.app' in s:
+            urls.append(s)
+
+    if len(urls) <= 1:
+        return True, '정리할 이전 배포가 없어.'
+
+    keep = urls[0]
+    targets = urls[1:]
+
     if dry_run:
-        cmd.append('--dry-run')
-    p = subprocess.run(cmd, cwd=str(WORKSPACE / 'tcg'), text=True, capture_output=True)
-    out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
-    if p.returncode == 0:
-        return True, (out.splitlines()[-1] if out else ('dry-run 완료' if dry_run else '배포 정리 완료'))
-    return False, (out.splitlines()[-1] if out else '배포 정리 실패')
+        return True, f'dry-run: keep 1개, delete 대상 {len(targets)}개'
+
+    deleted = 0
+    for u in targets:
+        dp = subprocess.run(['vercel', 'remove', u, '--yes', '--scope', scope], cwd=str(tcg_dir), text=True, capture_output=True)
+        if dp.returncode == 0:
+            deleted += 1
+
+    if deleted == len(targets):
+        return True, f'배포 정리 완료: keep 1개 ({keep}), 삭제 {deleted}개'
+    return False, f'배포 정리 부분 실패: keep 1개 ({keep}), 삭제 {deleted}/{len(targets)}개'
 
 
 def _dm_bulk_runtime_status() -> tuple[str, str, str]:
@@ -645,7 +674,12 @@ details.fold > summary::-webkit-details-marker{{display:none}}
 
         <form method='post' action='/commit-push' class='op-card'>
           <div class='op-title'>커밋 + 푸시</div>
-          <div class='op-desc'>현재 워크스페이스 변경사항 반영</div>
+          <div class='op-desc'>선택한 저장소 변경사항 반영</div>
+          <label class='op-label'>대상 저장소</label>
+          <select name='target'>
+            <option value='workspace'>workspace</option>
+            <option value='tcg'>tcg</option>
+          </select>
           <label class='op-label'>커밋 메시지</label>
           <input name='message' placeholder='기본값 자동'>
           <button class='btn btn-blue'>커밋 푸시 실행</button>
@@ -653,10 +687,15 @@ details.fold > summary::-webkit-details-marker{{display:none}}
 
         <form method='post' action='/initial-reset' class='op-card danger' onsubmit="return confirm('이니셜 커밋을 진행할까? (강제 푸시 포함)')">
           <div class='op-title'>이니셜 커밋으로 밀기</div>
-          <div class='op-desc'>히스토리 정리 즉시 실행 (강제 푸시 포함)</div>
+          <div class='op-desc'>선택한 저장소 히스토리 정리 즉시 실행 (강제 푸시 포함)</div>
+          <label class='op-label'>대상 저장소</label>
+          <select name='target'>
+            <option value='workspace'>workspace</option>
+            <option value='tcg'>tcg</option>
+          </select>
           <label class='op-label'>사유</label>
           <input name='reason' placeholder='reason' value='dashboard requested initial reset'>
-          <label class='op-check'><input name='noLatest' type='checkbox' value='1' style='width:auto'> 최신 변경 재적용 없이 이니셜만</label>
+          <label class='op-check'><input name='noLatest' type='checkbox' value='1' style='width:auto'> 최신 변경 재적용 없이 이니셜만 (workspace만 적용)</label>
           <button class='btn btn-red'>이니셜 커밋으로 밀기</button>
         </form>
       </div>
