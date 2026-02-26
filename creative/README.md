@@ -10,12 +10,14 @@
 ## novel 운영 기준(루트 안내)
 - 실행 단일 기준: `novel/novel_operation_guide.md`
 - 세계관 고정값: `novel/novel_story_bible.md`
+- 캐릭터 단일 기준: `novel/novel_character_guide.md`
 - 에피소드 상위 아웃라인: `novel/novel_episode_outline.md`
-- 에피소드 적용 맵(1~4): `novel/novel_episode_outline_ep1_ep4.md`
+- 에피소드 적용 맵(1~15): `novel/novel_episode_outline_ep1_ep15.md`
 - 연재 전략: `novel/novel_release_strategy.md`
 - 점검/수정 로그: `novel/novel_review_log.md`
-- 연속성 점검표: `novel/novel_rewrite_continuity_check_ep1_ep4.md`
+- 연속성 점검표: `novel/novel_rewrite_continuity_check_part1_part5.md`
 - 통합 리라이트 본문: `novel/stay_awake_full_rewrite.md`
+- 배포 분할본(5화): `novel/stay_awake_part1.md` ~ `novel/stay_awake_part5.md`
 
 ## 파일명 규칙 (공통)
 - 자연어 기반의 짧은 영어 파일명 사용

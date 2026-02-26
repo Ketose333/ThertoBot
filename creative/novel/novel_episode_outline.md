@@ -1,6 +1,6 @@
 # 그저 깨어 있기를 바랄 뿐 — 에피소드 아웃라인
 
-하위 리라이트 맵(1~4화): [`novel_episode_outline_ep1_ep4.md`](./novel_episode_outline_ep1_ep4.md)
+하위 리라이트 맵(1~15화): [`novel_episode_outline_ep1_ep15.md`](./novel_episode_outline_ep1_ep15.md)
 
 ## 전체 축
 - 색 10개 회수 미션
@@ -10,7 +10,7 @@
 
 ## 설정 동기화 기준
 - 세계관 원문 기준: [`novel_story_bible.md`](./novel_story_bible.md)
-- 1~4화 장면 적용 기준: [`novel_episode_outline_ep1_ep4.md`](./novel_episode_outline_ep1_ep4.md)
+- 1~15화 장면 적용 기준: [`novel_episode_outline_ep1_ep15.md`](./novel_episode_outline_ep1_ep15.md)
 
 ## 에피소드 1 (학교 루프 / 인트로)
 - 포지션: 메인축이 아닌 데뷔 서사
@@ -47,11 +47,12 @@
 - [ ] 3~5화 액션:정서 비율은 5:5 균형 유지
 - [ ] 팀 5인 공개는 최대한 빠르게 하되, 정보 난잡화는 금지
 - [ ] 소개문 톤은 서늘한 시적형 + 직설 미션형 혼합
+- [ ] 15화 장기 플랜은 [`novel_episode_outline_ep1_ep15.md`](./novel_episode_outline_ep1_ep15.md) 기준으로만 갱신
 
 ## 추가 확정값 (2026-02-26)
-- 검은 존재의 1순위 침습 방식: **공간을 덮어쓴다**
-- 3화 대표-승세 미세 암시 방식: **대사 + 행동** 병행
-- 5화 학교 이탈 메인 감정: **해방감**
+- 검은 존재의 1순위 침습 방식: 공간을 덮어쓴다
+- 3화 대표-승세 미세 암시 방식: 대사 + 행동 병행
+- 5화 학교 이탈 메인 감정: 해방감
 - 6화 첫 기둥 지역 톤: 미정 ("다음 컴백 콘셉트" 감각 기준으로 추후 결정)
 
 ## 모순/충돌 보정안 (고정 적용)
