@@ -20,7 +20,8 @@
 - 종료: `deactivate`
 
 ### TTS
-- 기본 보이스 정체성: `Fenrir` (한태율 기본 목소리)
+- **최우선 엔진:** `Gemini TTS`
+- 기본 보이스 정체성: `Fenrir` (한태율 기본 목소리, Gemini TTS 사용 불가 시 fallback 보이스)
 
 ### Studio UI 포트
 - Cron UI: `8767`

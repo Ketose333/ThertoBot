@@ -16,14 +16,15 @@
 - 04:00~08:00(KST): 크론 작업만 중지, 일반 대화는 유지한다.
 - 조용시간 자동화는 `cron-quiet-window-disable-0400`/`cron-quiet-window-enable-0800` 작업으로 활성 작업 상태를 저장/복구해 관리한다.
 
-## 09:30 실행 순서 (daily-context-hygiene-0930)
+## 09:30 실행 순서 (daily-context-checklists-0930)
 1. `memory/global-context.md` + `memory/channels/*.md`에서 완료된 임시 항목/중복 문장을 정리한다.
 2. 전역 요약은 3줄 이내로 유지한다.
 3. `memory/*.md` 데일리 로그 전체를 점검해 레거시/중복 항목을 정리한다.
-4. 보호 섹션(`DM_CANONICAL_POLICY`/`IMPORT_FROM_CHANNELS`/`EXPORT_TO_ALL_CHANNELS`/`DM_SYNC_EXPORT`)은 삭제·개명하지 않는다.
-5. 문체 정리(허용 범위 내)만 수행하고 의미/수치/경로/명령어/ID는 변경하지 않는다.
-6. RP/크론 레거시는 삭제하지 않고 이상 징후만 확인한다.
-7. 변경/이상 징후가 있으면 1줄 보고, 없으면 `NO_REPLY`.
+4. 체크리스트 문서(`policy/qa_checklist.md`/`policy/studio.md`/`studio/dashboard/config/pinned_message.md`)를 점검해 09:30 범위와 충돌/중복이 없는지 확인한다.
+5. 보호 섹션(`DM_CANONICAL_POLICY`/`IMPORT_FROM_CHANNELS`/`EXPORT_TO_ALL_CHANNELS`/`DM_SYNC_EXPORT`)은 삭제·개명하지 않는다.
+6. 문체 정리(허용 범위 내)만 수행하고 의미/수치/경로/명령어/ID는 변경하지 않는다.
+7. 대시보드 점검 항목(`youtube_state`/`dm_sync`/`system_dup`/`quiet_window`/`rp_health`)은 09:30에서 중복 점검하지 않는다.
+8. 변경이 있으면 1줄 보고, 없으면 `NO_REPLY`.
 
 ## 12:00 실행 순서 (daily-ops-checkin-1200)
 1. 판정 원칙 적용: 단일 timeout/오류로 실패 단정 금지, 상충 시 runs/`lastRunAt` 기준으로 최종 판정.

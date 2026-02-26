@@ -45,6 +45,6 @@
 - memory_search: local provider
 - 웹 검색: Brave
 - venv 루틴: `source .venv/bin/activate` / `deactivate`
-- TTS 보이스 정체성: Fenrir (한태율 기본 목소리)
+- TTS 우선순위: Gemini TTS 최우선, 사용 불가 시 Fenrir(한태율 기본 목소리) fallback
 - "실물 보여줘" 요청 시: 설명 없이 아바타 기반 실물 이미지 바로 생성/첨부
 - 쇼츠 운영 고정: UI 실행 전 `studio/shorts/defaults.json` 입력값(주제/경로) 먼저 합의하고, 렌더 전 워터마크 이미지 여부를 중간 점검해 제외
