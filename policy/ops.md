@@ -46,6 +46,10 @@
 - 금지 경로: 루트 `tmp_youtube_watch*.json`, `tmp/youtube_watch_result.json`, `tmp/youtube_watch_run_result.json`, `tmp/youtube_watch/*.json`, `memory/youtube-watch-last-run.json`, `memory/youtube-watch-run-result.json`.
 - 경로 위반 파일이 생기면 다음 점검 턴에 즉시 삭제하고, 표준 파일만 유지한다.
 
+## 런타임 락 경로 단일화
+- Discord bulk-delete runtime lock 단일 경로는 `studio/dashboard/runtime/discord_bulk_delete_runtime.lock`이다.
+- `memory/runtime/discord_bulk_delete_runtime.lock`는 레거시 경로로 간주하고 재생성하지 않는다.
+
 ## 09:30 안전 제한
 - 허용: 문체/맞춤법/구두점/따옴표 통일, 중복 표현 압축
 - 금지: 규칙 의미, 수치/시간/경로/명령어/ID 변경

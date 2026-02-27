@@ -14,7 +14,17 @@ from pathlib import Path
 from http_handler import create_handler
 from post_actions import handle_post
 from view_context import build_dashboard_context
-from utility.common.generation_defaults import WORKSPACE_ROOT
+
+try:
+    from utility.common.generation_defaults import WORKSPACE_ROOT
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path as _Path
+    for _p in _Path(__file__).resolve().parents:
+        if (_p / 'utility').exists():
+            sys.path.append(str(_p))
+            break
+    from utility.common.generation_defaults import WORKSPACE_ROOT
 
 
 def _val(form: dict[str, list[str]], key: str, default: str = "") -> str:

@@ -15,6 +15,7 @@ try:
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
     from utility.common.memory_auto_log import append_daily
     from utility.common.generation_defaults import (
+        WORKSPACE_ROOT,
         DEFAULT_IMAGE_ASPECT_RATIO,
         DEFAULT_IMAGE_MODEL,
         DEFAULT_TAEYUL_2D_REF_IMAGE,
@@ -35,6 +36,7 @@ except ModuleNotFoundError:
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
     from utility.common.memory_auto_log import append_daily
     from utility.common.generation_defaults import (
+        WORKSPACE_ROOT,
         MEDIA_ROOT,
         DEFAULT_IMAGE_ASPECT_RATIO,
         DEFAULT_IMAGE_MODEL,
@@ -42,7 +44,6 @@ except ModuleNotFoundError:
         DEFAULT_TAEYUL_REF_IMAGE,
         MEDIA_AVATAR_DIR,
         MEDIA_IMAGE_DIR,
-        MEDIA_ROOT,
     )
     from utility.common.path_policy import ensure_not_under, resolve_out_dir
     from utility.common.filename_policy import slugify_name, resolve_unique_name
