@@ -28,7 +28,7 @@
   - 오프닝을 첫 장면으로 저장한다.
 - `!rp 끝`
   - 현재 룸을 종료한다(스레드면 자동 아카이브 시도).
-  - 활성 룸 인덱스/임시 recent id/레거시 캐시를 자동 정리한다.
+  - 활성 룸 인덱스/임시 recent id/구형 캐시를 자동 정리한다.
 - 일반 채팅 메시지
   - 해당 채널/스레드가 활성 RP 룸일 때만 히스토리에 저장한다.
   - 매 턴 문맥 기반으로 RP 응답을 생성한다(고정 한 줄 제거).
@@ -82,8 +82,8 @@ python3 utility/taeyul/taeyul_cli.py rp-healthcheck --recover
 4. 일반 채널에서 기존 메인 응답 유지 확인
 5. 종료: `!rp 끝`
 
-## 레거시 룸 자동 청소
-- 정책 상세(레거시 범위/보호 규칙)는 [`policy/rp.md`](../../policy/rp.md)를 단일 기준으로 따른다.
+## 구형 룸 자동 청소
+- 정책 상세(구형 범위/보호 규칙)는 [`policy/rp.md`](../../policy/rp.md)를 단일 기준으로 따른다.
 - 실행 명령:
 ```bash
 python3 utility/rp/rp_engine.py --cleanup-non-active

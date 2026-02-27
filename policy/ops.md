@@ -19,7 +19,7 @@
 ## 09:30 실행 순서 (daily-context-checklists-0930)
 1. `memory/global-context.md` + `memory/channels/*.md`에서 완료된 임시 항목/중복 문장을 정리한다.
 2. 전역 요약은 3줄 이내로 유지한다.
-3. `memory/*.md` 데일리 로그 전체를 점검해 레거시/중복 항목을 정리한다.
+3. `memory/*.md` 데일리 로그 전체를 점검해 구형/중복 항목을 정리한다.
 4. 체크리스트 문서(`policy/qa_checklist.md`/`policy/studio.md`/`studio/dashboard/config/pinned_message.md`)를 점검해 09:30 범위와 충돌/중복이 없는지 확인한다.
 5. 보호 섹션(`DM_CANONICAL_POLICY`/`IMPORT_FROM_CHANNELS`/`EXPORT_TO_ALL_CHANNELS`/`DM_SYNC_EXPORT`)은 삭제·개명하지 않는다.
 6. 문체 정리(허용 범위 내)만 수행하고 의미/수치/경로/명령어/ID는 변경하지 않는다.
@@ -43,12 +43,12 @@
 - 채널 state는 `memory/youtube-watch-*.json`만 사용한다.
 - 실행 요약 산출물은 `memory/.youtube_watch_last_result.json`, `memory/.youtube_watch_run_result.json`만 사용한다.
 - `tmp/` 하위 임시 산출물 생성은 금지한다.
-- 금지 경로: 루트 `tmp_youtube_watch*.json`, `tmp/youtube_watch_result.json`, `tmp/youtube_watch_run_result.json`, `tmp/youtube_watch/*.json`, `memory/youtube-watch-last-run.json`, `memory/youtube-watch-run-result.json`.
+- 금지 경로: 루트 `(금지된 임시 루트 파일 패턴)`, `(금지된 임시 결과 파일)`, `(금지된 임시 실행결과 파일)`, `(금지된 tmp 하위 json 산출물)`, `(금지된 구형 요약 파일)`, `(금지된 구형 실행결과 파일)`.
 - 경로 위반 파일이 생기면 다음 점검 턴에 즉시 삭제하고, 표준 파일만 유지한다.
 
 ## 런타임 락 경로 단일화
 - Discord bulk-delete runtime lock 단일 경로는 `studio/dashboard/runtime/discord_bulk_delete_runtime.lock`이다.
-- `memory/runtime/discord_bulk_delete_runtime.lock`는 레거시 경로로 간주하고 재생성하지 않는다.
+- `(구형 runtime lock 경로)`는 구형 경로로 간주하고 재생성하지 않는다.
 
 ## 09:30 안전 제한
 - 허용: 문체/맞춤법/구두점/따옴표 통일, 중복 표현 압축

@@ -3,7 +3,16 @@ from pathlib import Path
 from datetime import datetime
 import re
 
-from utility.common.generation_defaults import WORKSPACE_ROOT
+try:
+    from utility.common.generation_defaults import WORKSPACE_ROOT
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path as _Path
+    for _p in _Path(__file__).resolve().parents:
+        if (_p / 'utility').exists():
+            sys.path.append(str(_p))
+            break
+    from utility.common.generation_defaults import WORKSPACE_ROOT
 ROOT = WORKSPACE_ROOT
 DM = ROOT / 'memory/channels/discord_dm_ketose.md'
 GLOBAL = ROOT / 'memory/global-context.md'

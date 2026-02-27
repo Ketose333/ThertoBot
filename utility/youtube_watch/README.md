@@ -52,7 +52,7 @@ python3 utility/youtube_watch/watch.py --task idntt-community
 ```
 
 - 커뮤니티 감시 같은 확장 기능은 `watch.py`에 통합한다.
-- 레거시 진입점은 제거했고, `watch.py`만 사용한다.
+- 구형 진입점은 제거했고, `watch.py`만 사용한다.
 
 ## 메모
 - 상태 파일은 채널별로 `memory/youtube-watch-<channel_id>.json` 사용
