@@ -10,11 +10,19 @@ import urllib.request
 import wave
 from pathlib import Path
 
-SAFE_DEFAULT_OUTPUT_DIR = Path("/home/user/.openclaw/media/audio").resolve()
-LEGACY_OUTPUT_DIR = Path("/home/user/.openclaw/workspace/output").resolve()
+SAFE_DEFAULT_OUTPUT_DIR = MEDIA_AUDIO_DIR
+LEGACY_OUTPUT_DIR = (WORKSPACE_ROOT / 'output').resolve()
 
 try:
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
+    from utility.common.generation_defaults import (
+        DEFAULT_TTS_MODEL,
+        DEFAULT_TTS_VOICE,
+        MEDIA_AUDIO_DIR,
+        WORKSPACE_ROOT,
+    )
+    from utility.common.path_policy import resolve_out_dir
+    from utility.common.filename_policy import slugify_name, resolve_unique_name
 except ModuleNotFoundError:
     import sys
     from pathlib import Path as _Path
@@ -23,6 +31,14 @@ except ModuleNotFoundError:
             sys.path.append(str(_p))
             break
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
+    from utility.common.generation_defaults import (
+        DEFAULT_TTS_MODEL,
+        DEFAULT_TTS_VOICE,
+        MEDIA_AUDIO_DIR,
+        WORKSPACE_ROOT,
+    )
+    from utility.common.path_policy import resolve_out_dir
+    from utility.common.filename_policy import slugify_name, resolve_unique_name
 
 
 def _force_utf8_stdio() -> None:
@@ -34,21 +50,11 @@ def _force_utf8_stdio() -> None:
 
 
 def slugify(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9가-힣]+", "_", text)
-    text = re.sub(r"_+", "_", text).strip("_")
-    return text or "tts"
+    return slugify_name(text, fallback='tts')
 
 
 def _resolve_unique_name(out_dir: Path, name: str) -> str:
-    p = Path(name)
-    stem, suf = p.stem, p.suffix
-    cand = out_dir / f"{stem}{suf}"
-    i = 2
-    while cand.exists():
-        cand = out_dir / f"{stem}_{i}{suf}"
-        i += 1
-    return cand.name
+    return resolve_unique_name(out_dir, name)
 
 
 def call_tts(api_key: str, model: str, text: str, voice: str) -> dict:
@@ -148,8 +154,8 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description="Generate TTS audio using Gemini API")
     ap.add_argument("text", help="Text to synthesize")
-    ap.add_argument("--model", default="gemini-2.5-flash-preview-tts", help="Model id (without models/ prefix)")
-    ap.add_argument("--voice", default="Fenrir", help="Prebuilt voice name")
+    ap.add_argument("--model", default=DEFAULT_TTS_MODEL, help="Model id (without models/ prefix)")
+    ap.add_argument("--voice", default=DEFAULT_TTS_VOICE, help="Prebuilt voice name")
     ap.add_argument("--out-dir", default=str(SAFE_DEFAULT_OUTPUT_DIR), help="Output directory")
     ap.add_argument("--name", default="", help="Output filename (optional)")
     ap.add_argument("--emit-media", action="store_true", help="Print MEDIA:relative_path")
@@ -170,9 +176,7 @@ def main() -> int:
         print(str(e), file=sys.stderr)
         return 1
 
-    out_dir = Path(args.out_dir).expanduser().resolve()
-    if out_dir == LEGACY_OUTPUT_DIR:
-        out_dir = SAFE_DEFAULT_OUTPUT_DIR
+    out_dir = resolve_out_dir(args.out_dir, SAFE_DEFAULT_OUTPUT_DIR, legacy_aliases=(LEGACY_OUTPUT_DIR,))
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ext = ext_from_mime(mime)

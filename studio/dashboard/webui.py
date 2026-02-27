@@ -14,6 +14,7 @@ from pathlib import Path
 from http_handler import create_handler
 from post_actions import handle_post
 from view_context import build_dashboard_context
+from utility.common.generation_defaults import WORKSPACE_ROOT
 
 
 def _val(form: dict[str, list[str]], key: str, default: str = "") -> str:
@@ -75,7 +76,7 @@ def gateway_call(method: str, params: dict) -> tuple[bool, dict, str]:
 
 
 def studio_ui_status() -> tuple[bool, list[dict], str]:
-    cmd = [PYTHON_BIN, "/home/user/.openclaw/workspace/studio/ui_runtime.py", "status"]
+    cmd = [PYTHON_BIN, str((WORKSPACE / 'studio' / 'ui_runtime.py').resolve()), "status"]
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = (p.stdout or "") + ("\n" + p.stderr if p.stderr else "")
     data = _extract_json(out)
@@ -83,7 +84,7 @@ def studio_ui_status() -> tuple[bool, list[dict], str]:
     return (p.returncode == 0), rows, out[-1200:]
 
 
-WORKSPACE = Path('/home/user/.openclaw/workspace')
+WORKSPACE = WORKSPACE_ROOT
 PYTHON_BIN = str((WORKSPACE / '.venv' / 'bin' / 'python')) if (WORKSPACE / '.venv' / 'bin' / 'python').exists() else 'python3'
 CRON_FOCUS_RULES = WORKSPACE / 'studio' / 'dashboard' / 'config' / 'cron_focus_rules.json'
 DASHBOARD_CHECKS = WORKSPACE / 'studio' / 'dashboard' / 'config' / 'dashboard_checks.json'
@@ -119,7 +120,7 @@ def _system_dup_signal(jobs: list[dict]) -> tuple[str, str]:
 
 
 def _aiven_mysql_status() -> tuple[str, str, str]:
-    cmd = [PYTHON_BIN, '/home/user/.openclaw/workspace/studio/dashboard/checks/aiven_service_check.py', 'mysql-budget']
+    cmd = [PYTHON_BIN, str((WORKSPACE / 'studio' / 'dashboard' / 'checks' / 'aiven_service_check.py').resolve()), 'mysql-budget']
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     data = _extract_json(out)
@@ -205,7 +206,7 @@ def _rp_status() -> tuple[bool, str]:
 
 
 def _rp_recover_only() -> tuple[bool, str]:
-    cmd = [PYTHON_BIN, '/home/user/.openclaw/workspace/utility/taeyul/taeyul_cli.py', 'rp-healthcheck', '--recover']
+    cmd = [PYTHON_BIN, str((WORKSPACE / 'utility' / 'taeyul' / 'taeyul_cli.py').resolve()), 'rp-healthcheck', '--recover']
     p = subprocess.run(cmd, text=True, capture_output=True)
     out = ((p.stdout or '') + ('\n' + p.stderr if p.stderr else '')).strip()
     if p.returncode == 0:
@@ -280,14 +281,14 @@ def _ensure_dm_bulk_runtime() -> None:
 
     cmd = [
         PYTHON_BIN,
-        '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py',
+        str((WORKSPACE / 'studio' / 'dashboard' / 'actions' / 'discord_bulk_delete_action.py').resolve()),
         'run', '--poll-sec', '2'
     ]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _dm_bulk_delete_enqueue(channel_id: str, limit: int, delete_pinned: bool = False) -> tuple[bool, str]:
-    script = '/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py'
+    script = str((WORKSPACE / 'studio' / 'dashboard' / 'actions' / 'discord_bulk_delete_action.py').resolve())
     cmd = [
         PYTHON_BIN, script,
         'enqueue', '--channel-id', channel_id, '--limit', str(limit),
@@ -319,7 +320,7 @@ def _create_and_pin_message(channel_id: str) -> tuple[bool, str]:
 def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
     default_msg = 'chore(tcg): update from dashboard' if target == 'tcg' else 'chore(workspace): update from dashboard'
     msg = (message or '').strip() or default_msg
-    repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
+    repo_dir = str((WORKSPACE / 'tcg').resolve()) if target == 'tcg' else str(WORKSPACE.resolve())
     cmd = [
         'bash', '-lc',
         (
@@ -358,7 +359,7 @@ def _commit_push(message: str, target: str = 'workspace') -> tuple[bool, str]:
 
 
 def _initial_reset_run(reason: str, target: str = 'workspace') -> tuple[bool, str]:
-    repo_dir = '/home/user/.openclaw/workspace/tcg' if target == 'tcg' else '/home/user/.openclaw/workspace'
+    repo_dir = str((WORKSPACE / 'tcg').resolve()) if target == 'tcg' else str(WORKSPACE.resolve())
     reason_clean = ' '.join((reason or '').split()).strip()
     if reason_clean:
         init_msg = f'chore: initial commit ({reason_clean})'

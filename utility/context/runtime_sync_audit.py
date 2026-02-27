@@ -6,7 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
-ROOT = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+ROOT = WORKSPACE_ROOT
 
 
 def run(cmd: list[str]) -> tuple[int, str, str]:

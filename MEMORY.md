@@ -45,6 +45,11 @@
 - memory_search: local provider
 - 웹 검색: Brave
 - venv 루틴: `source .venv/bin/activate` / `deactivate`
-- TTS 우선순위: Gemini TTS 최우선, 사용 불가 시 Fenrir(한태율 기본 목소리) fallback
+- TTS 우선순위: Gemini TTS 최우선, 기본 보이스는 Fenrir 고정(사용자 요청 시만 변경)
 - "실물 보여줘" 요청 시: 설명 없이 아바타 기반 실물 이미지 바로 생성/첨부
+- 이미지/Veo 비율 기본값: 사용자 미지정 시 1:1 고정
+- 생성 요청 처리: 설명보다 생성 실행 우선, 장시간 실행 시 1문장 진행상태 후 완료 즉시 결과 전달
+- YouTube watch 산출물 경로: `memory/.youtube_watch_last_result.json`, `memory/.youtube_watch_run_result.json`만 사용 (`tmp/` 산출물 금지)
+- 생성 공통 기본값 단일 소스: `utility/common/generation_defaults.py` (모델/비율/보이스/미디어 경로)
+- YouTube watch 경로 단일 소스: `utility/common/youtube_watch_paths.py` (state/요약 결과 경로)
 - 쇼츠 운영 고정: UI 실행 전 `studio/shorts/defaults.json` 입력값(주제/경로) 먼저 합의하고, 렌더 전 워터마크 이미지 여부를 중간 점검해 제외

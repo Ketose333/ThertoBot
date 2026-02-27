@@ -13,9 +13,13 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from common.webui_shell import render_page
+from utility.common.generation_defaults import DEFAULT_IMAGE_ASPECT_RATIO, DEFAULT_IMAGE_MODEL
 
-WORKSPACE = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import MEDIA_IMAGE_DIR, WORKSPACE_ROOT
+
+WORKSPACE = WORKSPACE_ROOT
 PRESETS_DIR = WORKSPACE / 'studio' / 'image' / 'presets'
 NORMALIZER = PRESETS_DIR / 'normalize_preset_json.py'
 VENV_PY = WORKSPACE / '.venv' / 'bin' / 'python3'
@@ -42,9 +46,9 @@ def _load_preset(path: Path) -> dict:
 def _ordered_preset(raw: dict) -> dict:
     out: dict = {}
     defaults = {
-        'model': 'nano-banana-pro-preview',
+        'model': DEFAULT_IMAGE_MODEL,
         'profile': 'ketose',
-        'aspect_ratio': '1:1',
+        'aspect_ratio': DEFAULT_IMAGE_ASPECT_RATIO,
         'count': 1,
         'purge_existing_outputs': True,
     }
@@ -84,8 +88,8 @@ def _run_preset(preset_name: str) -> tuple[bool, str, list[str]]:
             return False, 'preset prompt가 비어있어.', []
 
         profile = str(preset.get('profile', 'ketose'))
-        aspect_ratio = str(preset.get('aspect_ratio', '1:1'))
-        model = str(preset.get('model', 'nano-banana-pro-preview'))
+        aspect_ratio = str(preset.get('aspect_ratio', DEFAULT_IMAGE_ASPECT_RATIO))
+        model = str(preset.get('model', DEFAULT_IMAGE_MODEL))
         name_pattern = str(preset.get('output_name_pattern', f'{preset_name}_{{n}}.jpg'))
         purge_existing_outputs = bool(preset.get('purge_existing_outputs', True))
 
@@ -94,10 +98,10 @@ def _run_preset(preset_name: str) -> tuple[bool, str, list[str]]:
             rp = Path(ref_image).expanduser().resolve()
             if not rp.exists() or not rp.is_file():
                 return False, f'ref_image not found: {rp}', []
-            image_root = Path('/home/user/.openclaw/media/image').resolve()
+            image_root = MEDIA_IMAGE_DIR.resolve()
             try:
                 rp.relative_to(image_root)
-                return False, '재귀참조 방지: /home/user/.openclaw/media/image 아래 파일은 ref_image로 금지', []
+                return False, '재귀참조 방지: media/image 아래 파일은 ref_image로 금지', []
             except ValueError:
                 pass
 
@@ -143,9 +147,9 @@ def _run_direct(form: dict[str, list[str]]) -> tuple[bool, str, list[str]]:
     if not prompt:
         return False, '즉시 실행 프롬프트를 입력해줘.', []
 
-    model = _val(form, 'direct_model', 'nano-banana-pro-preview')
+    model = _val(form, 'direct_model', DEFAULT_IMAGE_MODEL)
     profile = _val(form, 'direct_profile', 'ketose')
-    aspect_ratio = _val(form, 'direct_aspect_ratio', '1:1')
+    aspect_ratio = _val(form, 'direct_aspect_ratio', DEFAULT_IMAGE_ASPECT_RATIO)
     count = max(1, int(_val(form, 'direct_count', '1') or '1'))
     name_pattern = _val(form, 'direct_name_pattern', 'direct_image_{n}.jpg')
     purge = _val(form, 'direct_purge') == 'on'
@@ -334,11 +338,11 @@ def _form(selected: str, data: dict, alert: str = '') -> bytes:
       <div><label>설명(description)</label><input name='description' value='{g('description')}'></div>
     </div>
     <div class='row'>
-      <div><label>모델(model)</label><input name='model' value='{g('model','nano-banana-pro-preview')}'><small class='hint'>기본값: nano-banana-pro-preview</small></div>
+      <div><label>모델(model)</label><input name='model' value='{g('model',DEFAULT_IMAGE_MODEL)}'><small class='hint'>기본값: {DEFAULT_IMAGE_MODEL}</small></div>
       <div><label>프로필(profile)</label><select name='profile'>{profile_options_html}</select></div>
     </div>
     <div class='row'>
-      <div><label>비율(aspect_ratio)</label><input name='aspect_ratio' value='{g('aspect_ratio','1:1')}'><small class='hint'>기본값: 1:1</small></div>
+      <div><label>비율(aspect_ratio)</label><input name='aspect_ratio' value='{g('aspect_ratio',DEFAULT_IMAGE_ASPECT_RATIO)}'><small class='hint'>기본값: {DEFAULT_IMAGE_ASPECT_RATIO}</small></div>
       <div><label>생성 개수(count)</label><input name='count' value='{g('count','1')}'><small class='hint'>기본값: 1</small></div>
     </div>
     <label>출력 파일 패턴(output_name_pattern)</label><input name='output_name_pattern' value='{g('output_name_pattern')}'>
@@ -351,11 +355,11 @@ def _form(selected: str, data: dict, alert: str = '') -> bytes:
     <h3>입력 설정 · 즉시 실행 (저장 없이 1회 생성)</h3>
     <label>자연어 요청 프롬프트</label><textarea name='direct_prompt'>{g('_direct_prompt')}</textarea>
     <div class='row'>
-      <div><label>모델(model)</label><input name='direct_model' value='{g('_direct_model','nano-banana-pro-preview')}'></div>
+      <div><label>모델(model)</label><input name='direct_model' value='{g('_direct_model',DEFAULT_IMAGE_MODEL)}'></div>
       <div><label>프로필(profile)</label><select name='direct_profile'>{''.join(f"<option value='{html.escape(v)}'" + (" selected" if v == str(data.get('_direct_profile','ketose')) else '') + f">{html.escape(v)}</option>" for v in PROFILE_OPTIONS)}</select></div>
     </div>
     <div class='row'>
-      <div><label>비율(aspect_ratio)</label><input name='direct_aspect_ratio' value='{g('_direct_aspect_ratio','1:1')}'></div>
+      <div><label>비율(aspect_ratio)</label><input name='direct_aspect_ratio' value='{g('_direct_aspect_ratio',DEFAULT_IMAGE_ASPECT_RATIO)}'></div>
       <div><label>생성 개수(count)</label><input name='direct_count' value='{g('_direct_count','1')}'></div>
     </div>
     <label>출력 파일 패턴(output_name_pattern)</label><input name='direct_name_pattern' value='{g('_direct_name_pattern','direct_image_{n}.jpg')}'>
@@ -422,9 +426,9 @@ class Handler(BaseHTTPRequestHandler):
                 updated = {
                     'name': _val(form, 'name'),
                     'description': _val(form, 'description'),
-                    'model': _val(form, 'model', 'nano-banana-pro-preview'),
+                    'model': _val(form, 'model', DEFAULT_IMAGE_MODEL),
                     'profile': _val(form, 'profile', 'ketose'),
-                    'aspect_ratio': _val(form, 'aspect_ratio', '1:1'),
+                    'aspect_ratio': _val(form, 'aspect_ratio', DEFAULT_IMAGE_ASPECT_RATIO),
                     'count': int(_val(form, 'count', '1')),
                     'prompt': _val(form, 'prompt'),
                     'output_name_pattern': _val(form, 'output_name_pattern'),
@@ -455,7 +459,7 @@ class Handler(BaseHTTPRequestHandler):
                 if with_caption:
                     up_content = _build_upload_caption(
                         _val(form, 'prompt', str(data.get('prompt', ''))).strip(),
-                        _val(form, 'model', str(data.get('model', 'nano-banana-pro-preview'))).strip(),
+                        _val(form, 'model', str(data.get('model', DEFAULT_IMAGE_MODEL))).strip(),
                         logs,
                     )
                 ok_up, msg = _upload_discord(cid, media_paths[-1], up_content)
@@ -475,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
                 if with_caption:
                     up_content = _build_upload_caption(
                         _val(form, 'direct_prompt').strip(),
-                        _val(form, 'direct_model', 'nano-banana-pro-preview').strip(),
+                        _val(form, 'direct_model', DEFAULT_IMAGE_MODEL).strip(),
                         logs,
                     )
                 ok_up, msg = _upload_discord(cid, media_paths[-1], up_content)
@@ -491,9 +495,9 @@ class Handler(BaseHTTPRequestHandler):
         data['_publish_channel_id'] = _val(form, 'publish_channel_id', DEFAULT_PUBLISH_CHANNEL_ID)
         data['_upload_with_caption'] = (_val(form, 'upload_with_caption') == 'on')
         data['_direct_prompt'] = _val(form, 'direct_prompt')
-        data['_direct_model'] = _val(form, 'direct_model', 'nano-banana-pro-preview')
+        data['_direct_model'] = _val(form, 'direct_model', DEFAULT_IMAGE_MODEL)
         data['_direct_profile'] = _val(form, 'direct_profile', 'ketose')
-        data['_direct_aspect_ratio'] = _val(form, 'direct_aspect_ratio', '1:1')
+        data['_direct_aspect_ratio'] = _val(form, 'direct_aspect_ratio', DEFAULT_IMAGE_ASPECT_RATIO)
         data['_direct_count'] = _val(form, 'direct_count', '1')
         data['_direct_name_pattern'] = _val(form, 'direct_name_pattern', 'direct_image_{n}.jpg')
         data['_direct_purge'] = (_val(form, 'direct_purge') == 'on')

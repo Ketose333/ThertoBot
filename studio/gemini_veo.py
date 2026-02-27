@@ -11,6 +11,13 @@ from pathlib import Path
 
 try:
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
+    from utility.common.generation_defaults import (
+        DEFAULT_VEO_ASPECT_RATIO,
+        DEFAULT_VEO_MODEL,
+        MEDIA_VIDEO_DIR,
+    )
+    from utility.common.path_policy import resolve_out_dir
+    from utility.common.filename_policy import resolve_unique_path
 except ModuleNotFoundError:
     import sys
     from pathlib import Path as _Path
@@ -19,32 +26,29 @@ except ModuleNotFoundError:
             sys.path.append(str(_p))
             break
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
+    from utility.common.generation_defaults import (
+        DEFAULT_VEO_ASPECT_RATIO,
+        DEFAULT_VEO_MODEL,
+        MEDIA_VIDEO_DIR,
+    )
+    from utility.common.path_policy import resolve_out_dir
+    from utility.common.filename_policy import resolve_unique_path
 
-RULES_PATH = Path("/home/user/.openclaw/workspace/studio/image/rules/image_rules.md")
-SAFE_DEFAULT_OUTPUT_DIR = Path("/home/user/.openclaw/media/video").resolve()
+RULES_PATH = (WORKSPACE_ROOT / 'studio' / 'image' / 'rules' / 'image_rules.md').resolve()
+SAFE_DEFAULT_OUTPUT_DIR = MEDIA_VIDEO_DIR
 LEGACY_OUTPUT_DIRS = {
-    Path("/home/user/.openclaw/workspace/media/video").resolve(),
-    Path("/home/user/.openclaw/workspace/media/video/").resolve(),
-    Path("/home/user/.openclaw/workspace/./media/video").resolve(),
+    (WORKSPACE_ROOT / 'media' / 'video').resolve(),
+    (WORKSPACE_ROOT / 'media' / 'video').resolve(),
+    (WORKSPACE_ROOT / 'media' / 'video').resolve(),
 }
 
 
-def slugify(text: str) -> str:
-    import re
-    text = (text or '').lower().strip()
-    text = re.sub(r"[^a-z0-9가-힣]+", "_", text)
-    text = re.sub(r"_+", "_", text).strip("_")
-    return text or 'video'
-
-
 def resolve_unique_video_path(out_dir: Path, base_name: str) -> Path:
-    stem = slugify(base_name)[:60] or 'video'
-    cand = out_dir / f"{stem}.mp4"
-    i = 2
-    while cand.exists():
-        cand = out_dir / f"{stem}_{i}.mp4"
-        i += 1
-    return cand
+    return resolve_unique_path(out_dir, base_name, '.mp4', fallback='video')
+
+
+def _resolve_out_dir(out_dir: str) -> Path:
+    return resolve_out_dir(out_dir, SAFE_DEFAULT_OUTPUT_DIR, legacy_aliases=tuple(LEGACY_OUTPUT_DIRS))
 
 
 def _parse_rules_sections() -> dict[str, list[str]]:
@@ -146,10 +150,12 @@ def main() -> int:
     load_env_prefer_dotenv()
     ap = argparse.ArgumentParser(description="Generate video with Gemini Veo (no-ref workflow)")
     ap.add_argument("prompt")
-    ap.add_argument("--model", default="models/veo-3.1-generate-preview")
+    ap.add_argument("--model", default=DEFAULT_VEO_MODEL)
     ap.add_argument("--out-dir", default=str(SAFE_DEFAULT_OUTPUT_DIR))
     ap.add_argument("--name", default="", help="Output filename stem (optional)")
     ap.add_argument("--poll-seconds", type=int, default=180)
+    ap.add_argument("--aspect-ratio", default=DEFAULT_VEO_ASPECT_RATIO, help="Aspect ratio, e.g. 1:1, 9:16, 16:9 (default: 1:1)")
+    ap.add_argument("--emit-media", action="store_true", help="Print MEDIA:relative_path")
     args = ap.parse_args()
 
     api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
@@ -163,7 +169,7 @@ def main() -> int:
     start_url = f"https://generativelanguage.googleapis.com/v1beta/{args.model}:predictLongRunning"
     body = {
         "instances": [instance],
-        "parameters": {"aspectRatio": "9:16"},
+        "parameters": {"aspectRatio": (args.aspect_ratio or DEFAULT_VEO_ASPECT_RATIO)},
     }
 
     try:
@@ -182,7 +188,7 @@ def main() -> int:
         if uri:
             video_bytes = download_bytes(uri, api_key)
     if video_bytes:
-        out = Path(args.out_dir)
+        out = _resolve_out_dir(args.out_dir)
         out.mkdir(parents=True, exist_ok=True)
         name_base = (args.name or "").strip() or args.prompt
         path = resolve_unique_video_path(out, name_base)
@@ -193,7 +199,10 @@ def main() -> int:
             media_path = f"./{rel.as_posix()}"
         except ValueError:
             media_path = path.resolve().as_posix()
-        print(f"VIDEO:{media_path}")
+        if args.emit_media:
+            print(f"MEDIA:{media_path}")
+        else:
+            print(f"VIDEO:{media_path}")
         return 0
 
     op_name = start.get("name")
@@ -223,9 +232,7 @@ def main() -> int:
             if not video_bytes:
                 print(f"Veo done but no inline video bytes. Raw: {json.dumps(st, ensure_ascii=False)[:1500]}", file=sys.stderr)
                 return 1
-            out = Path(args.out_dir).expanduser().resolve()
-            if out in LEGACY_OUTPUT_DIRS:
-                out = SAFE_DEFAULT_OUTPUT_DIR
+            out = _resolve_out_dir(args.out_dir)
             out.mkdir(parents=True, exist_ok=True)
             name_base = (args.name or "").strip() or args.prompt
             path = resolve_unique_video_path(out, name_base)
@@ -236,7 +243,10 @@ def main() -> int:
                 media_path = f"./{rel.as_posix()}"
             except ValueError:
                 media_path = path.resolve().as_posix()
-            print(f"VIDEO:{media_path}")
+            if args.emit_media:
+                print(f"MEDIA:{media_path}")
+            else:
+                print(f"VIDEO:{media_path}")
             return 0
         time.sleep(4)
 

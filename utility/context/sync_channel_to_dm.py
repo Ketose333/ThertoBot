@@ -3,7 +3,8 @@ from pathlib import Path
 from datetime import datetime
 import re
 
-ROOT = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+ROOT = WORKSPACE_ROOT
 CH_DIR = ROOT / 'memory/channels'
 DM_PATH = CH_DIR / 'discord_dm_ketose.md'
 

@@ -14,7 +14,8 @@ from typing import Any, Iterable, List
 
 import discord
 
-BASE = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+BASE = WORKSPACE_ROOT
 RUNTIME_DIR = BASE / 'studio' / 'dashboard' / 'runtime'
 QUEUE_PATH = RUNTIME_DIR / 'discord_bulk_delete_queue.jsonl'
 RUNS_PATH = RUNTIME_DIR / 'discord_bulk_delete_runs.jsonl'

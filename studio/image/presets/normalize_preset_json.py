@@ -2,9 +2,15 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
-PRESETS_DIR = Path('/home/user/.openclaw/workspace/studio/image/presets')
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from utility.common.generation_defaults import DEFAULT_IMAGE_ASPECT_RATIO, DEFAULT_IMAGE_MODEL
+
+from utility.common.generation_defaults import WORKSPACE_ROOT
+
+PRESETS_DIR = (WORKSPACE_ROOT / 'studio' / 'image' / 'presets').resolve()
 ORDER = [
     'name',
     'description',
@@ -16,9 +22,9 @@ ORDER = [
     'output_name_pattern',
 ]
 DEFAULTS = {
-    'model': 'nano-banana-pro-preview',
+    'model': DEFAULT_IMAGE_MODEL,
     'profile': 'ketose',
-    'aspect_ratio': '1:1',
+    'aspect_ratio': DEFAULT_IMAGE_ASPECT_RATIO,
     'count': 1,
 }
 

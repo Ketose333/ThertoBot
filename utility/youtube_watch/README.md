@@ -56,5 +56,7 @@ python3 utility/youtube_watch/watch.py --task idntt-community
 
 ## 메모
 - 상태 파일은 채널별로 `memory/youtube-watch-<channel_id>.json` 사용
+- 실행 요약은 `memory/.youtube_watch_last_result.json`, `memory/.youtube_watch_run_result.json`만 사용
+- `tmp/` 하위 임시 디버그 파일은 사용하지 않음
 - 첫 실행은 최신 영상 ID만 초기화하고 알림을 보내지 않음
 - 이후 새 영상만 중복 없이 알림

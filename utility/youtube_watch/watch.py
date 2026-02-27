@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from utility.common.generation_defaults import WORKSPACE_ROOT
+from utility.common.youtube_watch_paths import channel_state_path
 
-ROOT = Path("/home/user/.openclaw/workspace")
+ROOT = WORKSPACE_ROOT
 
 
 def _now_iso() -> str:
@@ -57,7 +59,7 @@ def _extract_post_id_from_url(url: str) -> str | None:
 
 def run_idntt_community() -> int:
     community_url = "https://www.youtube.com/@idntt/community"
-    state_path = ROOT / "memory/youtube-watch-idntt-community.json"
+    state_path = channel_state_path("idntt-community")
 
     req = Request(
         community_url,

@@ -5,8 +5,9 @@ import json
 import os
 from pathlib import Path
 
-LOCK = Path('/home/user/.openclaw/workspace/memory/rp_rooms/_runtime_lock.json')
-ACTIVE = Path('/home/user/.openclaw/workspace/memory/rp_rooms/_active_rooms.json')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+LOCK = (WORKSPACE_ROOT / 'memory' / 'rp_rooms' / '_runtime_lock.json').resolve()
+ACTIVE = (WORKSPACE_ROOT / 'memory' / 'rp_rooms' / '_active_rooms.json').resolve()
 
 
 def _pid_alive(pid: int) -> bool:

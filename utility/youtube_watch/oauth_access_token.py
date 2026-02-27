@@ -39,7 +39,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Issue Google OAuth access token from refresh token")
     p.add_argument(
         "--env-file",
-        default="/home/user/.openclaw/workspace/.env",
+        default=str((Path('/home/user/.openclaw/workspace') / ' .env').resolve()),
         help="dotenv file path (default: workspace .env)",
     )
     p.add_argument("--print-token", action="store_true", help="print raw access token")

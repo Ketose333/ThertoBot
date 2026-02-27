@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-BASE = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+BASE = WORKSPACE_ROOT
 RUNTIME_DIR = BASE / 'memory' / 'runtime'
 QUEUE_PATH = RUNTIME_DIR / 'gitignore_hygiene_queue.jsonl'
 RUNS_PATH = RUNTIME_DIR / 'gitignore_hygiene_runs.jsonl'

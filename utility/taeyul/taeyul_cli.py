@@ -22,10 +22,23 @@ for _p in Path(__file__).resolve().parents:
 if append_retro is None or maybe_log_feedback is None:
     from utility.common.memory_auto_log import append_retro, maybe_log_feedback
 
-STUDIO = Path("/home/user/.openclaw/workspace/studio")
+from utility.common.generation_defaults import (
+    DEFAULT_IMAGE_ASPECT_RATIO,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_TAEYUL_REF_IMAGE,
+    DEFAULT_TTS_VOICE,
+    DEFAULT_VEO_ASPECT_RATIO,
+    DEFAULT_VEO_MODEL,
+    MEDIA_AUDIO_DIR,
+    MEDIA_IMAGE_DIR,
+    MEDIA_VIDEO_DIR,
+    WORKSPACE_ROOT,
+)
+from utility.common.filename_policy import append_indexed_name
+
+STUDIO = WORKSPACE_ROOT / "studio"
 IMAGE_DIR = STUDIO / "image"
 SHORTS_DIR = STUDIO / "shorts"
-DEFAULT_TAEYUL_REF_IMAGE = "/home/user/.openclaw/workspace/avatars/taeyul.png"
 
 
 def _run(script: str, *args: str) -> int:
@@ -41,14 +54,7 @@ def _run(script: str, *args: str) -> int:
     return subprocess.run(["python3", str(target), *args]).returncode
 
 
-def _append_indexed_name(name: str, idx: int, count: int) -> str:
-    if count <= 1:
-        return name
-    p = Path(name)
-    stem = p.stem or name
-    suffix = p.suffix
-    return f"{stem}_{idx:02d}{suffix}"
-
+# filename indexing uses utility.common.filename_policy.append_indexed_name
 
 def main() -> int:
     p = argparse.ArgumentParser(description="taeyul internal compact cli")
@@ -56,15 +62,15 @@ def main() -> int:
 
     p_tts = sub.add_parser("tts")
     p_tts.add_argument("text")
-    p_tts.add_argument("--voice", default="Fenrir")
-    p_tts.add_argument("--out-dir", default="/home/user/.openclaw/media/audio")
+    p_tts.add_argument("--voice", default=DEFAULT_TTS_VOICE)
+    p_tts.add_argument("--out-dir", default=str(MEDIA_AUDIO_DIR))
     p_tts.add_argument("--name", default="")
     p_tts.add_argument("--emit-media", action="store_true")
 
     p_img = sub.add_parser("image")
     p_img.add_argument("prompt")
-    p_img.add_argument("--model", default="nano-banana-pro-preview")
-    p_img.add_argument("--out-dir", default="/home/user/.openclaw/media/image")
+    p_img.add_argument("--model", default=DEFAULT_IMAGE_MODEL)
+    p_img.add_argument("--out-dir", default=str(MEDIA_IMAGE_DIR))
     p_img.add_argument("--name", default="")
     p_img.add_argument("--ref-image", default=DEFAULT_TAEYUL_REF_IMAGE)
     p_img.add_argument("--no-ref", action="store_true")
@@ -73,14 +79,15 @@ def main() -> int:
     p_img.add_argument("--emit-media", action="store_true")
     p_img.add_argument("--count", type=int, default=1, help="generate N images")
     p_img.add_argument("--profile", default="taeyul", choices=["taeyul", "ketose", "kwonjinhyuk", "default"], help="identity profile hint")
-    p_img.add_argument("--aspect-ratio", default="")
+    p_img.add_argument("--aspect-ratio", default=DEFAULT_IMAGE_ASPECT_RATIO)
 
     p_veo = sub.add_parser("veo")
     p_veo.add_argument("prompt")
-    p_veo.add_argument("--model", default="models/veo-3.1-generate-preview")
-    p_veo.add_argument("--out-dir", default="/home/user/.openclaw/media/video")
+    p_veo.add_argument("--model", default=DEFAULT_VEO_MODEL)
+    p_veo.add_argument("--out-dir", default=str(MEDIA_VIDEO_DIR))
     p_veo.add_argument("--name", default="")
     p_veo.add_argument("--poll-seconds", type=int, default=180)
+    p_veo.add_argument("--aspect-ratio", default=DEFAULT_VEO_ASPECT_RATIO)
 
     p_shorts = sub.add_parser("shorts")
     for req in ("--channel-id", "--title", "--lines", "--subs", "--out"):
@@ -90,7 +97,7 @@ def main() -> int:
     p_shorts.add_argument("--subtitle-y", required=True, type=int)
     p_shorts.add_argument("--caption-y", required=True, type=int)
     p_shorts.add_argument("--voice", default="Charon")
-    p_shorts.add_argument("--font", default="/home/user/.openclaw/workspace/fonts/SBAggroB.ttf")
+    p_shorts.add_argument("--font", default=str((WORKSPACE_ROOT / 'fonts' / 'SBAggroB.ttf').resolve()))
     p_shorts.add_argument("--caption-font", default="")
     p_shorts.add_argument("--caption-y-offset", type=int, default=0)
 
@@ -130,7 +137,7 @@ def main() -> int:
             if a.aspect_ratio:
                 args += ["--aspect-ratio", a.aspect_ratio]
             if a.name:
-                args += ["--name", _append_indexed_name(a.name, i, count)]
+                args += ["--name", append_indexed_name(a.name, i, count)]
             if a.no_ref:
                 args += ["--no-ref"]
             elif a.ref_image:
@@ -149,7 +156,15 @@ def main() -> int:
         return rc
 
     if a.cmd == "veo":
-        rc = _run("gemini_veo.py", a.prompt, "--model", a.model, "--out-dir", a.out_dir, "--name", a.name, "--poll-seconds", str(a.poll_seconds))
+        rc = _run(
+            "gemini_veo.py",
+            a.prompt,
+            "--model", a.model,
+            "--out-dir", a.out_dir,
+            "--name", a.name,
+            "--poll-seconds", str(a.poll_seconds),
+            "--aspect-ratio", a.aspect_ratio,
+        )
         append_retro("veo", "ok" if rc == 0 else f"fail({rc})", "생성 지연/실패", "실패 시 모델/프롬프트 1개만 조정")
         return rc
 
@@ -163,19 +178,19 @@ def main() -> int:
         return rc
 
     if a.cmd == "bulk-delete-runtime":
-        script = Path('/home/user/.openclaw/workspace/studio/dashboard/actions/discord_bulk_delete_action.py')
+        script = (WORKSPACE_ROOT / 'studio' / 'dashboard' / 'actions' / 'discord_bulk_delete_action.py').resolve()
         rc = subprocess.run(["python3", str(script), "run", "--poll-sec", str(a.poll_sec)]).returncode
         append_retro("bulk-delete-runtime", "ok" if rc == 0 else f"fail({rc})", "동시 실행/잠금 충돌", "큐 상태 확인 후 단일 런타임 유지")
         return rc
 
     if a.cmd == "gitignore-hygiene-runtime":
-        script = Path('/home/user/.openclaw/workspace/utility/git/gitignore_hygiene_runtime.py')
+        script = (WORKSPACE_ROOT / 'utility' / 'git' / 'gitignore_hygiene_runtime.py').resolve()
         rc = subprocess.run(["python3", str(script), "run", "--poll-sec", str(a.poll_sec)]).returncode
         append_retro("gitignore-hygiene-runtime", "ok" if rc == 0 else f"fail({rc})", "추적해제 누락", "tracked-but-ignored 목록 재확인")
         return rc
 
     if a.cmd == "gitignore-hygiene-enqueue":
-        script = Path('/home/user/.openclaw/workspace/utility/git/gitignore_hygiene_runtime.py')
+        script = (WORKSPACE_ROOT / 'utility' / 'git' / 'gitignore_hygiene_runtime.py').resolve()
         args = ["enqueue"]
         if a.reason:
             args += ["--reason", a.reason]

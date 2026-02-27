@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import subprocess
 
+from utility.common.generation_defaults import WORKSPACE_ROOT
+
 
 def _extract_json(text: str) -> dict:
     i = text.find('{')
@@ -16,7 +18,7 @@ def _extract_json(text: str) -> dict:
 
 
 def main() -> int:
-    p = subprocess.run(['python3', '/home/user/.openclaw/workspace/studio/ui_runtime.py', 'status'], text=True, capture_output=True)
+    p = subprocess.run(['python3', str((WORKSPACE_ROOT / 'studio' / 'ui_runtime.py').resolve()), 'status'], text=True, capture_output=True)
     out = (p.stdout or '') + ('\n' + p.stderr if p.stderr else '')
     data = _extract_json(out)
     rows = data.get('rows', []) if isinstance(data, dict) else []

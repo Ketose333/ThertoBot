@@ -21,8 +21,10 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-WORKSPACE = Path("/home/user/.openclaw/workspace")
-STATE_DIR = WORKSPACE / "utility" / "youtube_watch" / "state"
+from utility.common.generation_defaults import WORKSPACE_ROOT
+from utility.common.youtube_watch_paths import channel_state_path
+
+STATE_DIR = WORKSPACE_ROOT / "utility" / "youtube_watch" / "state"
 REGISTRY_PATH = STATE_DIR / "channels.json"
 
 
@@ -34,7 +36,7 @@ class TargetSpec:
 
     @property
     def state_file(self) -> str:
-        return f"/home/user/.openclaw/workspace/memory/youtube-watch-{self.slug}.json"
+        return str(channel_state_path(self.slug))
 
     @property
     def target_line(self) -> str:

@@ -39,6 +39,13 @@
 - 임계치/판정값 단일 소스는 [`studio/dashboard/config/thresholds.json`](../studio/dashboard/config/thresholds.json)으로 관리한다.
 - 정책 문서에는 점검 원칙만 유지하고, 개별 항목/라벨/임계치는 대시보드 설정 파일에서만 갱신한다.
 
+## YouTube Watch 파일 경로 단일화
+- 채널 state는 `memory/youtube-watch-*.json`만 사용한다.
+- 실행 요약 산출물은 `memory/.youtube_watch_last_result.json`, `memory/.youtube_watch_run_result.json`만 사용한다.
+- `tmp/` 하위 임시 산출물 생성은 금지한다.
+- 금지 경로: 루트 `tmp_youtube_watch*.json`, `tmp/youtube_watch_result.json`, `tmp/youtube_watch_run_result.json`, `tmp/youtube_watch/*.json`, `memory/youtube-watch-last-run.json`, `memory/youtube-watch-run-result.json`.
+- 경로 위반 파일이 생기면 다음 점검 턴에 즉시 삭제하고, 표준 파일만 유지한다.
+
 ## 09:30 안전 제한
 - 허용: 문체/맞춤법/구두점/따옴표 통일, 중복 표현 압축
 - 금지: 규칙 의미, 수치/시간/경로/명령어/ID 변경

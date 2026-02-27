@@ -5,6 +5,7 @@
 - YouTube 신영상 알림은 `channel:1471931748194455807`에 전송한다.
 - 일반 리마인드는 DM으로 전송한다.
 - YouTube watcher 등록/실행 가이드는 [`utility/youtube_watch/README.md`](../utility/youtube_watch/README.md)를 따른다.
+- 사용자 직접 작업 지시(특히 이미지/미디어 생성)는 시스템 점검 응답보다 우선 처리한다.
 
 ## 디스코드 응답 가드
 - 허용 채널 allowlist 밖에서는 멘션이 와도 응답하지 않는다.

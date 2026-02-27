@@ -5,7 +5,8 @@ import json
 import time
 from pathlib import Path
 
-STATE = Path('/home/user/.openclaw/workspace/memory/quiet-hours-enabled.json')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+STATE = (WORKSPACE_ROOT / 'memory' / 'quiet-hours-enabled.json').resolve()
 
 
 def main() -> int:

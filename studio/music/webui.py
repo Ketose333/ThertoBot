@@ -12,13 +12,14 @@ from urllib.parse import parse_qs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.webui_shell import render_page
+from utility.common.generation_defaults import MEDIA_ROOT, WORKSPACE_ROOT
 
-WORKSPACE = Path('/home/user/.openclaw/workspace')
+WORKSPACE = WORKSPACE_ROOT
 PRESETS_PATH = WORKSPACE / 'studio' / 'music' / 'strudel_presets.json'
 DEFAULT_PUBLISH_CHANNEL_ID = '1470802274518433885'
 STRUDEL_WAV_DIRS = [
-    Path('/home/user/.openclaw/media/audio/strudel'),
-    Path('/home/user/.openclaw/media/bgm/strudel'),
+    (MEDIA_ROOT / 'audio' / 'strudel').resolve(),
+    (MEDIA_ROOT / 'bgm' / 'strudel').resolve(),
 ]
 
 

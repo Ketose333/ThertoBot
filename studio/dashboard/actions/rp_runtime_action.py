@@ -62,8 +62,9 @@ except ModuleNotFoundError:
 ALLOWED_PREFIX = '!rp'
 MAX_SEEN_MESSAGE_IDS = 2000
 
-GUIDE_PATH = Path('/home/user/.openclaw/workspace/utility/rp/rp_guide.md')
-COMMAND_SEEN_PATH = Path('/home/user/.openclaw/workspace/memory/rp_rooms/_command_seen.json')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+GUIDE_PATH = (WORKSPACE_ROOT / 'utility' / 'rp' / 'rp_guide.md').resolve()
+COMMAND_SEEN_PATH = (WORKSPACE_ROOT / 'memory' / 'rp_rooms' / '_command_seen.json').resolve()
 
 def _load_rp_guide_text() -> str:
     try:

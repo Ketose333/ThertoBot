@@ -10,7 +10,9 @@ import subprocess
 import time
 from pathlib import Path
 
-WORKSPACE = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+
+WORKSPACE = WORKSPACE_ROOT
 STATE_PATH = WORKSPACE / 'memory' / 'runtime' / 'studio_ui_runtime.json'
 
 UI_TARGETS = {

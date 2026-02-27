@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ROOT = Path('/home/user/.openclaw/workspace')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+ROOT = WORKSPACE_ROOT
 DM = ROOT / 'memory/channels/discord_dm_ketose.md'
 GLOBAL = ROOT / 'memory/global-context.md'
 

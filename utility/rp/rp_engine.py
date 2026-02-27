@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 # ---- paths/constants ----
-ROOMS_DIR = Path('/home/user/.openclaw/workspace/memory/rp_rooms')
+from utility.common.generation_defaults import WORKSPACE_ROOT
+ROOMS_DIR = (WORKSPACE_ROOT / 'memory' / 'rp_rooms').resolve()
 ACTIVE_ROOMS_PATH = ROOMS_DIR / '_active_rooms.json'
 RUNTIME_LOCK_PATH = ROOMS_DIR / '_runtime_lock.json'
 LEGACY_CACHE_PATH = ROOMS_DIR / '_legacy_cache.json'
@@ -112,7 +113,7 @@ def _allowed_room_pref_keys() -> set[str]:
 
     if not ids:
         try:
-            env_path = Path('/home/user/.openclaw/workspace/.env')
+            env_path = (WORKSPACE_ROOT / '.env').resolve()
             raw = env_path.read_text(encoding='utf-8') if env_path.exists() else ''
             for line in raw.splitlines():
                 if line.startswith('RP_ALLOWED_CHANNEL_IDS='):

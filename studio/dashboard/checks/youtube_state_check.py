@@ -7,7 +7,18 @@ import subprocess
 import time
 from pathlib import Path
 
-THRESH = Path('/home/user/.openclaw/workspace/studio/dashboard/config/thresholds.json')
+try:
+    from utility.common.generation_defaults import WORKSPACE_ROOT
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path as _Path
+    for _p in _Path(__file__).resolve().parents:
+        if (_p / 'utility').exists():
+            sys.path.append(str(_p))
+            break
+    from utility.common.generation_defaults import WORKSPACE_ROOT
+
+THRESH = WORKSPACE_ROOT / 'studio/dashboard/config/thresholds.json'
 
 
 def _extract_json(text: str) -> dict:
@@ -39,7 +50,9 @@ def _required_state_files_from_cron() -> list[Path]:
         return []
 
     msg = str(((target.get('payload') or {}).get('message') or ''))
-    paths = re.findall(r"/home/user/\.openclaw/workspace/memory/youtube-watch-[^\s`'\"]+\.json", msg)
+    ws = str(WORKSPACE_ROOT).replace('\\', '/')
+    pat = rf"{re.escape(ws)}/memory/youtube-watch-[^\s`'\"]+\.json"
+    paths = re.findall(pat, msg)
     return sorted({Path(p) for p in paths})
 
 

@@ -14,6 +14,17 @@ from pathlib import Path
 try:
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
     from utility.common.memory_auto_log import append_daily
+    from utility.common.generation_defaults import (
+        DEFAULT_IMAGE_ASPECT_RATIO,
+        DEFAULT_IMAGE_MODEL,
+        DEFAULT_TAEYUL_2D_REF_IMAGE,
+        DEFAULT_TAEYUL_REF_IMAGE,
+        MEDIA_AVATAR_DIR,
+        MEDIA_IMAGE_DIR,
+        MEDIA_ROOT,
+    )
+    from utility.common.path_policy import ensure_not_under, resolve_out_dir
+    from utility.common.filename_policy import slugify_name, resolve_unique_name
 except ModuleNotFoundError:
     import sys
     from pathlib import Path as _Path
@@ -23,14 +34,24 @@ except ModuleNotFoundError:
             break
     from utility.common.env_prefer_dotenv import load_env_prefer_dotenv
     from utility.common.memory_auto_log import append_daily
+    from utility.common.generation_defaults import (
+        MEDIA_ROOT,
+        DEFAULT_IMAGE_ASPECT_RATIO,
+        DEFAULT_IMAGE_MODEL,
+        DEFAULT_TAEYUL_2D_REF_IMAGE,
+        DEFAULT_TAEYUL_REF_IMAGE,
+        MEDIA_AVATAR_DIR,
+        MEDIA_IMAGE_DIR,
+        MEDIA_ROOT,
+    )
+    from utility.common.path_policy import ensure_not_under, resolve_out_dir
+    from utility.common.filename_policy import slugify_name, resolve_unique_name
 
-RULES_PATH = Path("/home/user/.openclaw/workspace/studio/image/rules/image_rules.md")
+RULES_PATH = (WORKSPACE_ROOT / 'studio' / 'image' / 'rules' / 'image_rules.md').resolve()
 
-DEFAULT_TAEYUL_REF_IMAGE = "/home/user/.openclaw/workspace/avatars/taeyul.png"
-DEFAULT_TAEYUL_2D_REF_IMAGE = "/home/user/.openclaw/media/avatars/taeyul2D.png"
-BANNED_OUTPUT_ROOT = Path("/home/user/.openclaw/media/avatars").resolve()
-SAFE_DEFAULT_OUTPUT_DIR = Path("/home/user/.openclaw/media/image").resolve()
-LEGACY_IMAGES_DIR = Path("/home/user/.openclaw/media/images").resolve()
+BANNED_OUTPUT_ROOT = MEDIA_AVATAR_DIR
+SAFE_DEFAULT_OUTPUT_DIR = MEDIA_IMAGE_DIR
+LEGACY_IMAGES_DIR = (MEDIA_ROOT / 'images').resolve()
 
 def _force_utf8_stdio() -> None:
     try:
@@ -40,21 +61,11 @@ def _force_utf8_stdio() -> None:
         pass
 
 def slugify(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9가-힣]+", "_", text)
-    text = re.sub(r"_+", "_", text).strip("_")
-    return text or "image"
+    return slugify_name(text, fallback='image')
 
 
 def _resolve_unique_name(out_dir: Path, name: str) -> str:
-    p = Path(name)
-    stem, suf = p.stem, p.suffix
-    cand = out_dir / f"{stem}{suf}"
-    i = 2
-    while cand.exists():
-        cand = out_dir / f"{stem}_{i}{suf}"
-        i += 1
-    return cand.name
+    return resolve_unique_name(out_dir, name)
 
 
 def _purge_out_dir_matches(out_dir: Path, pattern: str) -> int:
@@ -188,7 +199,7 @@ def _avatar_lock_prompt(prompt: str, allow_2d: bool = False, model: str = "", pr
     selected += sections.get("FRAMING_AND_POSE_BASELINE", [])
     selected += sections.get("BACKGROUND_QUALITY_BASELINE", [])
 
-    if "nano-banana-pro-preview" in (model or ""):
+    if DEFAULT_IMAGE_MODEL in (model or ""):
         selected += sections.get("NANO_BANANA_PRO_GUARD", [])
         selected += sections.get("HARD_CASE_AVOIDANCE", [])
 
@@ -258,26 +269,24 @@ def _validate_ref_image_path(ref_image: str) -> None:
     if not p:
         return
     # Prevent identity drift from chaining generated outputs as new references.
-    banned_root = Path('/home/user/.openclaw/media/image').resolve()
-    try:
-        p.relative_to(banned_root)
-        raise RuntimeError('generated image under ~/.openclaw/media/image cannot be used as --ref-image; use avatar/original reference instead')
-    except ValueError:
-        return
+    ensure_not_under(
+        p,
+        MEDIA_IMAGE_DIR,
+        'generated image under ~/.openclaw/media/image cannot be used as --ref-image; use avatar/original reference instead',
+    )
 
 def _validate_out_dir_path(out_dir: str) -> Path:
-    p = Path((out_dir or '').strip() or str(SAFE_DEFAULT_OUTPUT_DIR)).expanduser().resolve()
+    p = resolve_out_dir(out_dir, SAFE_DEFAULT_OUTPUT_DIR, legacy_aliases=(LEGACY_IMAGES_DIR,))
 
-    # compat alias auto-fix: ~/.openclaw/media/images -> ~/.openclaw/media/image
-    if p == LEGACY_IMAGES_DIR:
+    if p == SAFE_DEFAULT_OUTPUT_DIR and (out_dir or '').strip() and Path((out_dir or '').strip()).expanduser().resolve() == LEGACY_IMAGES_DIR:
         append_daily('- [경로 보정] gemini_image out-dir alias(images) -> media/image 자동 보정')
-        p = SAFE_DEFAULT_OUTPUT_DIR
 
-    try:
-        p.relative_to(BANNED_OUTPUT_ROOT)
-        raise RuntimeError('output path under ~/.openclaw/media/avatars is blocked; use ~/.openclaw/media/image instead')
-    except ValueError:
-        return p
+    ensure_not_under(
+        p,
+        BANNED_OUTPUT_ROOT,
+        'output path under ~/.openclaw/media/avatars is blocked; use ~/.openclaw/media/image instead',
+    )
+    return p
 
 def call_generate(
     api_key: str,
@@ -382,7 +391,7 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description="Generate image using Gemini API (UTF-8 safe)")
     ap.add_argument("prompt", help="Image prompt")
-    ap.add_argument("--model", default="nano-banana-pro-preview", help="Model id (without models/ prefix)")
+    ap.add_argument("--model", default=DEFAULT_IMAGE_MODEL, help="Model id (without models/ prefix)")
     ap.add_argument("--out-dir", default=str(SAFE_DEFAULT_OUTPUT_DIR), help="Output directory")
     ap.add_argument("--name", default="", help="Output filename (optional)")
     ap.add_argument("--ref-image", default=DEFAULT_TAEYUL_REF_IMAGE, help="Reference image path for identity lock (default: taeyul avatar)")
@@ -391,7 +400,7 @@ def main() -> int:
     ap.add_argument("--allow-2d", action="store_true", help="Allow non-photorealistic 2D/cartoon style (auto-uses taeyul2D ref when default ref is used)")
     ap.add_argument("--emit-media", action="store_true", help="Print MEDIA:relative_path for direct chat attachment")
     ap.add_argument("--profile", default="taeyul", choices=["taeyul","ketose","kwonjinhyuk","default"], help="Profile hint for rule selection")
-    ap.add_argument("--aspect-ratio", default="1:1", help="Aspect ratio, e.g. 1:1, 4:5, 16:9, 9:16 (default: 1:1)")
+    ap.add_argument("--aspect-ratio", default=DEFAULT_IMAGE_ASPECT_RATIO, help="Aspect ratio, e.g. 1:1, 4:5, 16:9, 9:16 (default: 1:1)")
     ap.add_argument("--purge-glob", default="", help="Delete existing files in out-dir matching this filename glob before save (e.g. 'ketose_selfie_clone_*.jpg')")
     args = ap.parse_args()
 
@@ -411,7 +420,7 @@ def main() -> int:
     last_err: Exception | None = None
 
     model_chain = [model]
-    if model == "models/nano-banana-pro-preview":
+    if model == f"models/{DEFAULT_IMAGE_MODEL}":
         model_chain.append("models/gemini-2.5-flash-image")
 
     for mi, model_try in enumerate(model_chain):
